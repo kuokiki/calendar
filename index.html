@@ -2,8 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>極簡風格行事曆 - 完整版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極簡行事曆 - 終極穩定版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -12,12 +12,12 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #F9FBFD; overflow-x: hidden; }
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: #F8FAFC; margin: 0; padding: 0; }
+        .day-cell { min-height: 85px; border-bottom: 1px solid #F1F5F9; border-right: 1px solid #F1F5F9; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .animate-up { animation: slideUp 0.3s ease-out; }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .day-cell { min-height: 95px; transition: 0.2s; cursor: pointer; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; }
-        .day-cell:hover { background-color: #f8fafc; }
+        input[type="date"], input[type="time"] { -webkit-appearance: none; background: #F1F5F9; border: none; padding: 10px; border-radius: 12px; font-weight: bold; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
 <body>
@@ -26,19 +26,15 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
-        const MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-
         const App = () => {
-            // --- 狀態管理 ---
+            // --- 1. 核心資料狀態 ---
             const [currentDate, setCurrentDate] = useState(new Date());
             const [view, setView] = useState('month'); // month, day, items
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-            
-            // 資料持久化
+
             const [categories, setCategories] = useState(() => {
-                const saved = localStorage.getItem('cal_cats');
+                const saved = localStorage.getItem('cal_final_cats');
                 return saved ? JSON.parse(saved) : [
                     { id: '1', name: '工作項目', color: '#3B82F6' },
                     { id: '2', name: '畫畫創作', color: '#EC4899' },
@@ -47,28 +43,28 @@
             });
 
             const [events, setEvents] = useState(() => {
-                const saved = localStorage.getItem('cal_events');
+                const saved = localStorage.getItem('cal_final_events');
                 return saved ? JSON.parse(saved) : [];
             });
 
             const [visibleLayers, setVisibleLayers] = useState(categories.map(c => c.id));
 
-            // 表單暫存
+            // 表單
             const [form, setForm] = useState({
                 id: null, title: '', type: '1', date: '', hasTime: false, time: '12:00',
                 isRecurring: false, repeatDays: [], hasEndDate: false, endDate: ''
             });
-
             const [catForm, setCatForm] = useState({ name: '', color: '#3B82F6' });
 
-            // --- 效果 ---
+            // --- 2. 儲存邏輯 ---
             useEffect(() => {
-                localStorage.setItem('cal_cats', JSON.stringify(categories));
-                localStorage.setItem('cal_events', JSON.stringify(events));
+                localStorage.setItem('cal_final_cats', JSON.stringify(categories));
+                localStorage.setItem('cal_final_events', JSON.stringify(events));
             }, [categories, events]);
 
-            // --- 邏輯功能 ---
+            // --- 3. 輔助邏輯 ---
             const formatKey = (date) => {
+                if (!date) return "";
                 const d = new Date(date);
                 return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             };
@@ -91,18 +87,7 @@
                 }).sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
             };
 
-            const saveEvent = () => {
-                if (!form.title) return;
-                const newEvent = { ...form, id: form.id || Date.now().toString(), startDate: form.date };
-                if (form.id) {
-                    setEvents(events.map(e => e.id === form.id ? newEvent : e));
-                } else {
-                    setEvents([...events, newEvent]);
-                }
-                setIsModalOpen(false);
-            };
-
-            // --- 組件：月視圖 ---
+            // --- 4. 視圖組件 ---
             const MonthView = () => {
                 const year = currentDate.getFullYear();
                 const month = currentDate.getMonth();
@@ -113,24 +98,26 @@
                 for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
 
                 return (
-                    <div className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-sm animate-up">
-                        <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
-                            {WEEKDAYS.map(d => <div key={d} className="py-3 text-center text-[10px] font-black text-slate-400 uppercase">{d}</div>)}
+                    <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+                        <div className="grid grid-cols-7 bg-slate-50 text-center py-2">
+                            {['日','一','二','三','四','五','六'].map(d => (
+                                <div key={d} className="text-[10px] font-black text-slate-400">{d}</div>
+                            ))}
                         </div>
                         <div className="grid grid-cols-7">
                             {days.map((day, i) => {
                                 const evs = getEventsForDate(day);
                                 const isToday = day && formatKey(day) === formatKey(new Date());
                                 return (
-                                    <div key={i} onClick={() => day && (setCurrentDate(day), setView('day'))} className="day-cell p-1">
+                                    <div key={i} onClick={() => day && (setCurrentDate(day), setView('day'))} className="day-cell p-1 hover:bg-slate-50 cursor-pointer">
                                         {day && (
                                             <>
                                                 <div className={`text-[11px] font-black w-6 h-6 flex items-center justify-center mx-auto mb-1 rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
                                                     {day.getDate()}
                                                 </div>
-                                                <div className="flex flex-col gap-0.5">
+                                                <div className="space-y-0.5">
                                                     {evs.slice(0, 3).map(e => (
-                                                        <div key={e.id} className="text-[8px] px-1 py-0.5 rounded truncate font-bold text-slate-700" style={{backgroundColor: categories.find(c=>c.id===e.type)?.color + '25', borderLeft: `2px solid ${categories.find(c=>c.id===e.type)?.color}`}}>
+                                                        <div key={e.id} className="text-[8px] px-1 truncate rounded font-bold" style={{backgroundColor: categories.find(c=>c.id===e.type)?.color + '20', color: '#333', borderLeft: `2px solid ${categories.find(c=>c.id===e.type)?.color}`}}>
                                                             {e.title}
                                                         </div>
                                                     ))}
@@ -146,184 +133,149 @@
             };
 
             return (
-                <div className="max-w-md mx-auto bg-white min-h-screen pb-32 relative shadow-2xl">
+                <div className="max-w-md mx-auto bg-white min-h-screen relative pb-32">
                     {/* Header */}
-                    <header className="p-6 bg-white/90 backdrop-blur-md sticky top-0 z-40 border-b border-slate-50">
+                    <header className="p-6 sticky top-0 bg-white/95 backdrop-blur-md z-30 border-b border-slate-50">
                         <div className="flex justify-between items-center mb-6">
-                            <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-                                {currentDate.getFullYear()}年 {MONTHS[currentDate.getMonth()]}
+                            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">
+                                {currentDate.getFullYear()}年 {currentDate.getMonth()+1}月
                             </h1>
-                            <div className="flex bg-slate-100 p-1 rounded-2xl">
-                                <button onClick={() => setView('month')} className={`p-2.5 rounded-xl transition-all ${view==='month' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-calendar-days"></i></button>
-                                <button onClick={() => setView('day')} className={`p-2.5 rounded-xl transition-all ${view==='day' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-list-check"></i></button>
-                                <button onClick={() => setView('items')} className={`p-2.5 rounded-xl transition-all ${view==='items' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-layer-group"></i></button>
+                            <div className="flex bg-slate-100 p-1 rounded-xl">
+                                <button onClick={() => setView('month')} className={`p-2 px-3 rounded-lg ${view==='month' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-calendar"></i></button>
+                                <button onClick={() => setView('day')} className={`p-2 px-3 rounded-lg ${view==='day' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-list"></i></button>
+                                <button onClick={() => setView('items')} className={`p-2 px-3 rounded-lg ${view==='items' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-tags"></i></button>
                             </div>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex justify-between items-center">
                             <div className="flex gap-2">
-                                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:bg-white border border-transparent hover:border-slate-100 transition-all"><i className="fa-solid fa-chevron-left"></i></button>
-                                <button onClick={() => setCurrentDate(new Date())} className="px-5 py-2 bg-slate-50 rounded-xl text-[10px] font-black uppercase text-slate-500 tracking-widest hover:bg-white hover:text-blue-600 transition-all">Today</button>
-                                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:bg-white border border-transparent hover:border-slate-100 transition-all"><i className="fa-solid fa-chevron-right"></i></button>
+                                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-50 rounded-lg text-slate-400"><i className="fa-solid fa-chevron-left"></i></button>
+                                <button onClick={() => setCurrentDate(new Date())} className="px-4 text-[10px] font-black bg-slate-50 rounded-lg uppercase text-slate-500">Today</button>
+                                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-50 rounded-lg text-slate-400"><i className="fa-solid fa-chevron-right"></i></button>
                             </div>
                             <div className="flex -space-x-2">
                                 {categories.map(c => (
-                                    <button key={c.id} onClick={() => setVisibleLayers(prev => prev.includes(c.id) ? prev.filter(i=>i!==c.id) : [...prev, c.id])} 
-                                        className={`w-8 h-8 rounded-full border-2 border-white shadow-sm transition-all ${visibleLayers.includes(c.id) ? 'scale-110 z-10' : 'opacity-20 grayscale'}`} style={{backgroundColor: c.color}} />
+                                    <div key={c.id} className="w-7 h-7 rounded-full border-2 border-white shadow-sm" style={{backgroundColor: c.color}} />
                                 ))}
                             </div>
                         </div>
                     </header>
 
-                    {/* Content Area */}
-                    <main className="p-5">
+                    {/* Content */}
+                    <main className="p-4">
                         {view === 'month' && <MonthView />}
-                        
                         {view === 'day' && (
-                            <div className="space-y-6 animate-up">
-                                <div className="flex items-center gap-5 mb-8">
-                                    <div className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex flex-col items-center justify-center shadow-xl">
-                                        <span className="text-[10px] font-black uppercase">{WEEKDAYS[currentDate.getDay()]}</span>
-                                        <span className="text-xl font-black">{currentDate.getDate()}</span>
-                                    </div>
-                                    <div>
-                                        <h2 className="text-lg font-black text-slate-800">{currentDate.getFullYear()}年 {currentDate.getMonth()+1}月</h2>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{getEventsForDate(currentDate).length} 個行程計畫</p>
-                                    </div>
-                                </div>
-                                {getEventsForDate(currentDate).map(ev => {
-                                    const cat = categories.find(c => c.id === ev.type);
-                                    return (
-                                        <div key={ev.id} onClick={() => { setForm(ev); setIsModalOpen(true); }} className="flex items-center gap-4 cursor-pointer group">
-                                            <div className="text-[11px] font-black text-slate-300 w-12 text-right">{ev.hasTime ? ev.time : '整天'}</div>
-                                            <div className="flex-1 p-5 rounded-[24px] border border-slate-100 bg-white transition-all group-hover:shadow-md" style={{borderLeft: `6px solid ${cat?.color}`}}>
-                                                <div className="flex justify-between items-center">
-                                                    <div>
-                                                        <span className="text-[9px] font-black opacity-40 uppercase block mb-1">{cat?.name}</span>
-                                                        <span className="font-bold text-slate-700">{ev.title}</span>
-                                                    </div>
-                                                    <i className="fa-solid fa-chevron-right text-slate-200"></i>
-                                                </div>
-                                            </div>
+                            <div className="space-y-4">
+                                <div className="text-sm font-black text-slate-400 mb-4 tracking-widest uppercase">{formatKey(currentDate)}</div>
+                                {getEventsForDate(currentDate).map(ev => (
+                                    <div key={ev.id} onClick={() => { setForm(ev); setIsModalOpen(true); }} className="p-5 rounded-3xl border border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                        <div>
+                                            <div className="text-[10px] font-black mb-1" style={{color: categories.find(c=>c.id===ev.type)?.color}}>{categories.find(c=>c.id===ev.type)?.name}</div>
+                                            <div className="font-bold text-slate-700">{ev.title}</div>
+                                            <div className="text-[10px] text-slate-400 mt-1"><i className="fa-regular fa-clock mr-1"></i>{ev.hasTime ? ev.time : '全天'}</div>
                                         </div>
-                                    );
-                                })}
-                                {getEventsForDate(currentDate).length === 0 && <div className="py-20 text-center opacity-20 font-black"><i className="fa-solid fa-calendar-xmark text-5xl mb-4 block"></i>今日無計畫</div>}
+                                        <i className="fa-solid fa-chevron-right text-slate-200"></i>
+                                    </div>
+                                ))}
+                                {getEventsForDate(currentDate).length === 0 && <div className="py-20 text-center text-slate-300 font-bold">今日尚無計畫</div>}
                             </div>
                         )}
-
                         {view === 'items' && (
-                            <div className="space-y-4 animate-up">
-                                <button onClick={() => { setCatForm({name:'', color:'#3B82F6'}); setIsCatModalOpen(true); }} className="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black text-sm flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"><i className="fa-solid fa-plus"></i> 新增項目類別</button>
-                                {categories.map(cat => (
-                                    <div key={cat.id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex justify-between items-center group">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-5 h-5 rounded-full shadow-inner" style={{backgroundColor: cat.color}} />
-                                            <span className="font-black text-slate-700">{cat.name}</span>
+                            <div className="space-y-4">
+                                <button onClick={() => setIsCatModalOpen(true)} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold text-sm">+ 新增分類</button>
+                                {categories.map(c => (
+                                    <div key={c.id} className="flex justify-between items-center p-4 bg-white rounded-2xl border border-slate-50 shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-4 h-4 rounded-full" style={{backgroundColor: c.color}} />
+                                            <span className="font-bold text-slate-700">{c.name}</span>
                                         </div>
-                                        <button onClick={() => setCategories(categories.filter(c=>c.id!==cat.id))} className="text-slate-200 hover:text-red-500 transition-all"><i className="fa-solid fa-trash-can"></i></button>
+                                        <button onClick={() => setCategories(categories.filter(i=>i.id!==c.id))} className="text-slate-200 hover:text-red-500"><i className="fa-solid fa-trash"></i></button>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </main>
 
-                    {/* FAB 漂浮按鈕 */}
-                    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-[360px] bg-slate-900 shadow-2xl text-white p-3 rounded-[35px] flex justify-between items-center z-50">
-                        <div className="flex items-center gap-4 pl-6">
-                            <i className="fa-solid fa-clock text-blue-400"></i>
-                            <span className="text-sm font-black tracking-tight">{formatKey(currentDate)}</span>
-                        </div>
+                    {/* FAB */}
+                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-[360px] bg-slate-900 text-white p-3 rounded-full flex justify-between items-center shadow-2xl z-40">
+                        <div className="pl-6 text-sm font-bold">{formatKey(currentDate)}</div>
                         <button onClick={() => {
-                            setForm({ id: null, title: '', type: '1', date: formatKey(currentDate), hasTime: false, time: '12:00', isRecurring: false, repeatDays: [], hasEndDate: false, endDate: '' });
+                            setForm({id:null, title:'', type:'1', date:formatKey(currentDate), hasTime:false, time:'12:00', isRecurring:false, repeatDays:[], hasEndDate:false, endDate:''});
                             setIsModalOpen(true);
-                        }} className="bg-blue-600 w-14 h-14 rounded-[26px] flex items-center justify-center shadow-xl hover:scale-105 active:scale-90 transition-all">
-                            <i className="fa-solid fa-plus text-2xl"></i>
+                        }} className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-xl shadow-lg active:scale-90 transition-all">
+                            <i className="fa-solid fa-plus"></i>
                         </button>
                     </div>
 
-                    {/* 行程編輯彈窗 */}
+                    {/* Event Modal */}
                     {isModalOpen && (
-                        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-md flex items-end">
-                            <div className="bg-white w-full max-w-md rounded-t-[45px] p-8 max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl animate-up">
-                                <div className="flex justify-between items-center mb-8">
-                                    <h2 className="text-2xl font-black text-slate-800 tracking-tighter">編輯計畫</h2>
-                                    <button onClick={() => setIsModalOpen(false)} className="p-3 bg-slate-50 rounded-2xl text-slate-400"><i className="fa-solid fa-xmark"></i></button>
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end">
+                            <div className="bg-white w-full rounded-t-[40px] p-8 max-h-[85vh] overflow-y-auto no-scrollbar shadow-2xl">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-black">編輯行程</h2>
+                                    <button onClick={() => setIsModalOpen(false)} className="text-slate-300"><i className="fa-solid fa-xmark text-xl"></i></button>
                                 </div>
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">計畫標題</label>
-                                        <input type="text" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} placeholder="要做什麼呢？" className="w-full p-5 bg-slate-50 rounded-3xl font-black text-xl outline-none border-2 border-transparent focus:border-blue-500 transition-all" />
-                                    </div>
-
+                                <div className="space-y-6 pb-10">
+                                    <input type="text" placeholder="計畫標題" value={form.title} onChange={e=>setForm({...form, title:e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-blue-500" />
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">日期</label>
-                                            <input type="date" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-black outline-none border-2 border-transparent focus:border-blue-500 transition-all" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">時間</label>
-                                            <input type="time" disabled={!form.hasTime} value={form.time} onChange={e=>setForm({...form, time: e.target.value})} className={`w-full p-4 bg-slate-50 rounded-2xl font-black outline-none border-2 border-transparent focus:border-blue-500 transition-all ${!form.hasTime && 'opacity-20'}`} />
-                                        </div>
+                                        <input type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} />
+                                        <input type="time" disabled={!form.hasTime} value={form.time} onChange={e=>setForm({...form, time:e.target.value})} className={!form.hasTime ? 'opacity-20' : ''} />
                                     </div>
-
-                                    <div className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl">
-                                        <div className="flex items-center gap-3 font-black text-sm text-slate-700"><i className="fa-solid fa-clock text-blue-500"></i> 設定具體時間</div>
-                                        <button onClick={()=>setForm({...form, hasTime: !form.hasTime})} className={`w-12 h-6 rounded-full relative transition-all ${form.hasTime ? 'bg-blue-600' : 'bg-slate-200'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${form.hasTime ? 'left-7' : 'left-1'}`} /></button>
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                        <span className="font-bold text-sm">啟用具體時間</span>
+                                        <button onClick={()=>setForm({...form, hasTime:!form.hasTime})} className={`w-10 h-5 rounded-full relative ${form.hasTime?'bg-blue-600':'bg-slate-300'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${form.hasTime?'left-6':'left-1'}`} /></button>
                                     </div>
-
-                                    <div className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl">
-                                        <div className="flex items-center gap-3 font-black text-sm text-slate-700"><i className="fa-solid fa-repeat text-green-500"></i> 每週重複</div>
-                                        <button onClick={()=>setForm({...form, isRecurring: !form.isRecurring})} className={`w-12 h-6 rounded-full relative transition-all ${form.isRecurring ? 'bg-green-500' : 'bg-slate-200'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${form.isRecurring ? 'left-7' : 'left-1'}`} /></button>
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                        <span className="font-bold text-sm">每週重複</span>
+                                        <button onClick={()=>setForm({...form, isRecurring:!form.isRecurring})} className={`w-10 h-5 rounded-full relative ${form.isRecurring?'bg-green-600':'bg-slate-300'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${form.isRecurring?'left-6':'left-1'}`} /></button>
                                     </div>
-
                                     {form.isRecurring && (
-                                        <div className="space-y-4 p-5 bg-slate-50 rounded-3xl border border-slate-100">
-                                            <div className="flex justify-between gap-1">
-                                                {WEEKDAYS.map((d, i) => (
-                                                    <button key={i} onClick={() => {
-                                                        const days = form.repeatDays.includes(i) ? form.repeatDays.filter(day => day !== i) : [...form.repeatDays, i];
-                                                        setForm({...form, repeatDays: days});
-                                                    }} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${form.repeatDays.includes(i) ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-300'}`}>{d}</button>
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between">
+                                                {['日','一','二','三','四','五','六'].map((d,i) => (
+                                                    <button key={i} onClick={()=>{
+                                                        const days = form.repeatDays.includes(i) ? form.repeatDays.filter(x=>x!==i) : [...form.repeatDays, i];
+                                                        setForm({...form, repeatDays:days});
+                                                    }} className={`w-8 h-8 rounded-lg text-[10px] font-bold ${form.repeatDays.includes(i)?'bg-blue-600 text-white':'bg-slate-100 text-slate-400'}`}>{d}</button>
                                                 ))}
                                             </div>
-                                            <div className="flex items-center justify-between pt-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">截止日</label>
-                                                <input type="date" value={form.endDate} onChange={e=>setForm({...form, hasEndDate: true, endDate: e.target.value})} className="bg-transparent text-xs font-black outline-none" />
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-bold text-slate-400">重複截止日期</span>
+                                                <input type="date" value={form.endDate} onChange={e=>setForm({...form, hasEndDate:true, endDate:e.target.value})} />
                                             </div>
                                         </div>
                                     )}
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {categories.map(cat => (
-                                            <button key={cat.id} onClick={()=>setForm({...form, type: cat.id})} className={`p-4 rounded-2xl flex items-center gap-3 border-2 transition-all ${form.type === cat.id ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-50 bg-slate-50 text-slate-400'}`}>
-                                                <div className="w-3 h-3 rounded-full" style={{backgroundColor: cat.color}} />
-                                                <span className="text-[11px] font-black uppercase tracking-widest">{cat.name}</span>
-                                            </button>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {categories.map(c => (
+                                            <button key={c.id} onClick={()=>setForm({...form, type:c.id})} className={`p-3 rounded-xl border-2 text-xs font-bold ${form.type===c.id?'border-slate-800 bg-slate-800 text-white':'border-slate-50 text-slate-400'}`}>{c.name}</button>
                                         ))}
                                     </div>
-
-                                    <div className="flex gap-3 mt-4">
-                                        {form.id && <button onClick={() => { setEvents(events.filter(e=>e.id!==form.id)); setIsModalOpen(false); }} className="flex-1 py-5 bg-red-50 text-red-500 rounded-[2rem] font-black">刪除計畫</button>}
-                                        <button onClick={saveEvent} className="flex-[2] py-5 bg-blue-600 text-white rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all">儲存計畫</button>
+                                    <div className="flex gap-2">
+                                        {form.id && <button onClick={()=>{setEvents(events.filter(x=>x.id!==form.id)); setIsModalOpen(false);}} className="flex-1 py-4 bg-red-50 text-red-500 rounded-2xl font-bold">刪除</button>}
+                                        <button onClick={()=>{
+                                            if(!form.title) return;
+                                            const newEv = {...form, id: form.id || Date.now().toString(), startDate: form.date};
+                                            setEvents(form.id ? events.map(x=>x.id===form.id?newEv:x) : [...events, newEv]);
+                                            setIsModalOpen(false);
+                                        }} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-bold">儲存計畫</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* 類別編輯彈窗 */}
+                    {/* Category Modal */}
                     {isCatModalOpen && (
-                        <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6">
-                            <div className="bg-white w-full max-w-xs rounded-[3rem] p-8 shadow-2xl animate-up">
-                                <h2 className="text-xl font-black mb-6">新增分類項目</h2>
-                                <div className="space-y-4">
-                                    <input type="text" placeholder="類別名稱" value={catForm.name} onChange={e=>setCatForm({...catForm, name: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-black outline-none" />
-                                    <input type="color" value={catForm.color} onChange={e=>setCatForm({...catForm, color: e.target.value})} className="w-full h-12 bg-transparent cursor-pointer" />
-                                    <button onClick={() => {
-                                        setCategories([...categories, { ...catForm, id: Date.now().toString() }]);
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
+                            <div className="bg-white w-full max-w-xs rounded-[32px] p-6 shadow-2xl">
+                                <h3 className="font-black mb-4 text-center">新增類別</h3>
+                                <input type="text" placeholder="類別名稱" value={catForm.name} onChange={e=>setCatForm({...catForm, name:e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl mb-4 font-bold" />
+                                <input type="color" value={catForm.color} onChange={e=>setCatForm({...catForm, color:e.target.value})} className="w-full h-10 mb-6 bg-transparent" />
+                                <div className="flex gap-2">
+                                    <button onClick={()=>setIsCatModalOpen(false)} className="flex-1 py-3 font-bold text-slate-400">取消</button>
+                                    <button onClick={()=>{
+                                        setCategories([...categories, {...catForm, id:Date.now().toString()}]);
                                         setIsCatModalOpen(false);
-                                    }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg">儲存類別</button>
-                                    <button onClick={()=>setIsCatModalOpen(false)} className="w-full py-2 text-slate-300 font-bold">取消</button>
+                                    }} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold">儲存</button>
                                 </div>
                             </div>
                         </div>
@@ -332,7 +284,8 @@
             );
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
         root.render(<App />);
     </script>
 </body>
