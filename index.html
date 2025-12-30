@@ -1,30 +1,55 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>React Calendar App</title>
-    <!-- Link to manifest.json -->
     <link rel="manifest" href="manifest.json">
-    <!-- Include the service worker -->
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <script>
+        // 修正 Service Worker 路徑 (拿掉最前面的斜線)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js').then(
-                    registration => {
-                        console.log('ServiceWorker registration successful with scope:', registration.scope);
-                    },
-                    err => {
-                        console.log('ServiceWorker registration failed:', err);
-                    }
-                );
+                navigator.serviceWorker.register('service-worker.js');
             });
         }
     </script>
 </head>
 <body>
     <div id="root"></div>
-    <!-- React app script -->
-    <script src="index.js"></script>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        const App = () => {
+            const [date, setDate] = useState(new Date());
+
+            const handleDateChange = (event) => {
+                setDate(new Date(event.target.value));
+            };
+
+            return (
+                <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' }}>
+                    <h1>我的日曆 App</h1>
+                    <input
+                        type="date"
+                        style={{ padding: '10px', fontSize: '18px', borderRadius: '10px', border: '1px solid #ddd' }}
+                        value={date.toISOString().slice(0, 10)}
+                        onChange={handleDateChange}
+                    />
+                    <p style={{ marginTop: '20px', fontSize: '20px' }}>
+                        選擇的日期是: <br/> <strong>{date.toLocaleDateString()}</strong>
+                    </p>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
