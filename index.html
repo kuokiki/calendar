@@ -8,83 +8,67 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide-react@0.344.0/dist/umd/lucide-react.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; }
+        body { font-family: 'Inter', sans-serif; background-color: #F9FBFD; overflow-x: hidden; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-pop { animation: fadeIn 0.3s ease-out forwards; }
+        .animate-up { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .day-cell { min-height: 95px; transition: 0.2s; cursor: pointer; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; }
+        .day-cell:hover { background-color: #f8fafc; }
     </style>
 </head>
-<body class="bg-gray-50">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
-        // 取得 Lucide 組件 (UMD 模式)
-        const { 
-            ChevronLeft, ChevronRight, Plus, Calendar, Layers, 
-            X, Info, CalendarDays, Edit3, 
-            CheckCircle2, ChevronDown, ChevronUp, FileText, 
-            Clock, CalendarRange, Trash2
-        } = LucideReact;
-
-        const getLightColor = (hex) => {
-            if (!hex || !hex.startsWith('#')) return '#F3F4F6';
-            const r = parseInt(hex.slice(1, 3), 16);
-            const g = parseInt(hex.slice(3, 5), 16);
-            const b = parseInt(hex.slice(5, 7), 16);
-            return `rgba(${r}, ${g}, ${b}, 0.12)`;
-        };
 
         const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
         const MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
         const App = () => {
-            // --- 核心數據狀態 (帶 LocalStorage) ---
+            // --- 狀態管理 ---
             const [currentDate, setCurrentDate] = useState(new Date());
-            const [view, setView] = useState('month');
+            const [view, setView] = useState('month'); // month, day, items
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [isCatModalOpen, setIsCatModalOpen] = useState(false);
             
+            // 資料持久化
             const [categories, setCategories] = useState(() => {
-                const saved = localStorage.getItem('cal_v2_cats');
+                const saved = localStorage.getItem('cal_cats');
                 return saved ? JSON.parse(saved) : [
-                    { id: 'work', name: '工作項目', color: '#3B82F6', lightColor: 'rgba(59, 130, 246, 0.12)' },
-                    { id: 'draw', name: '畫畫創作', color: '#EC4899', lightColor: 'rgba(236, 72, 153, 0.12)' },
-                    { id: 'life', name: '生活日常', color: '#10B981', lightColor: 'rgba(16, 185, 129, 0.12)' }
+                    { id: '1', name: '工作項目', color: '#3B82F6' },
+                    { id: '2', name: '畫畫創作', color: '#EC4899' },
+                    { id: '3', name: '生活日常', color: '#10B981' }
                 ];
             });
 
             const [events, setEvents] = useState(() => {
-                const saved = localStorage.getItem('cal_v2_events');
+                const saved = localStorage.getItem('cal_events');
                 return saved ? JSON.parse(saved) : [];
             });
 
             const [visibleLayers, setVisibleLayers] = useState(categories.map(c => c.id));
-            const [isModalOpen, setIsModalOpen] = useState(false);
-            const [modalMode, setModalMode] = useState('add');
-            const [selectedDetail, setSelectedDetail] = useState(null);
-            const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-            const [showMonthPicker, setShowMonthPicker] = useState(false);
 
-            // --- 表單狀態 ---
-            const [formEvent, setFormEvent] = useState({
-                id: null, title: '', description: '', type: 'work', 
-                isRecurring: false, repeatDays: [], date: '', 
-                hasTime: false, time: '12:00', hasEndDate: false, endDate: ''
+            // 表單暫存
+            const [form, setForm] = useState({
+                id: null, title: '', type: '1', date: '', hasTime: false, time: '12:00',
+                isRecurring: false, repeatDays: [], hasEndDate: false, endDate: ''
             });
+
             const [catForm, setCatForm] = useState({ name: '', color: '#3B82F6' });
 
-            // --- 持久化 ---
+            // --- 效果 ---
             useEffect(() => {
-                localStorage.setItem('cal_v2_cats', JSON.stringify(categories));
-                localStorage.setItem('cal_v2_events', JSON.stringify(events));
+                localStorage.setItem('cal_cats', JSON.stringify(categories));
+                localStorage.setItem('cal_events', JSON.stringify(events));
             }, [categories, events]);
 
+            // --- 邏輯功能 ---
             const formatKey = (date) => {
-                if (!date) return "";
                 const d = new Date(date);
                 return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             };
@@ -100,251 +84,246 @@
                         const start = new Date(ev.startDate || ev.date);
                         const target = new Date(dateStr);
                         if (target < start) return false;
-                        if (ev.hasEndDate && ev.endDate) {
-                            if (target > new Date(ev.endDate)) return false;
-                        }
+                        if (ev.hasEndDate && ev.endDate && target > new Date(ev.endDate)) return false;
                         return ev.repeatDays.includes(dayOfWeek);
                     }
                     return ev.date === dateStr;
                 }).sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
             };
 
-            const handleSaveEvent = () => {
-                if (!formEvent.title) return;
-                if (modalMode === 'add') {
-                    const newEvent = { ...formEvent, id: Date.now().toString(), startDate: formEvent.date };
-                    setEvents([...events, newEvent]);
+            const saveEvent = () => {
+                if (!form.title) return;
+                const newEvent = { ...form, id: form.id || Date.now().toString(), startDate: form.date };
+                if (form.id) {
+                    setEvents(events.map(e => e.id === form.id ? newEvent : e));
                 } else {
-                    setEvents(events.map(e => e.id === formEvent.id ? formEvent : e));
+                    setEvents([...events, newEvent]);
                 }
                 setIsModalOpen(false);
-                setSelectedDetail(null);
             };
 
-            // --- 子組件：月視圖 ---
+            // --- 組件：月視圖 ---
             const MonthView = () => {
                 const year = currentDate.getFullYear();
                 const month = currentDate.getMonth();
                 const firstDay = new Date(year, month, 1).getDay();
-                const numDays = new Date(year, month + 1, 0).getDate();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
                 const days = [];
                 for (let i = 0; i < firstDay; i++) days.push(null);
-                for (let i = 1; i <= numDays; i++) days.push(new Date(year, month, i));
+                for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
 
                 return (
-                    <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-3xl overflow-hidden border border-gray-200 shadow-sm animate-pop">
-                        {WEEKDAYS.map(d => <div key={d} className="bg-white p-3 text-center text-[10px] font-bold text-gray-400 uppercase">{d}</div>)}
-                        {days.map((day, i) => {
-                            const dayEvents = getEventsForDate(day);
-                            const isToday = day && formatKey(day) === formatKey(new Date());
-                            const isSelected = day && formatKey(day) === formatKey(currentDate);
-                            return (
-                                <div key={i} onClick={() => day && (setCurrentDate(day), setView('day'))}
-                                    className={`bg-white min-h-[105px] p-1 transition-all ${!day ? 'bg-gray-50/50' : 'hover:bg-blue-50/30 cursor-pointer'} ${isSelected ? 'bg-blue-50/20' : ''}`}>
-                                    {day && (
-                                        <>
-                                            <div className={`text-xs mb-1 flex justify-center items-center w-7 h-7 rounded-full mx-auto font-black ${isToday ? 'bg-blue-600 text-white' : isSelected ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
-                                                {day.getDate()}
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                {dayEvents.slice(0, 3).map(ev => {
-                                                    const cat = categories.find(c => c.id === ev.type);
-                                                    return (
-                                                        <div key={ev.id} className="text-[9px] px-1.5 py-0.5 rounded border truncate font-bold"
-                                                            style={{ backgroundColor: cat?.lightColor, borderColor: cat?.color, color: '#333' }}>
-                                                            {ev.title}
+                    <div className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-sm animate-up">
+                        <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
+                            {WEEKDAYS.map(d => <div key={d} className="py-3 text-center text-[10px] font-black text-slate-400 uppercase">{d}</div>)}
+                        </div>
+                        <div className="grid grid-cols-7">
+                            {days.map((day, i) => {
+                                const evs = getEventsForDate(day);
+                                const isToday = day && formatKey(day) === formatKey(new Date());
+                                return (
+                                    <div key={i} onClick={() => day && (setCurrentDate(day), setView('day'))} className="day-cell p-1">
+                                        {day && (
+                                            <>
+                                                <div className={`text-[11px] font-black w-6 h-6 flex items-center justify-center mx-auto mb-1 rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
+                                                    {day.getDate()}
+                                                </div>
+                                                <div className="flex flex-col gap-0.5">
+                                                    {evs.slice(0, 3).map(e => (
+                                                        <div key={e.id} className="text-[8px] px-1 py-0.5 rounded truncate font-bold text-slate-700" style={{backgroundColor: categories.find(c=>c.id===e.type)?.color + '25', borderLeft: `2px solid ${categories.find(c=>c.id===e.type)?.color}`}}>
+                                                            {e.title}
                                                         </div>
-                                                    );
-                                                })}
-                                                {dayEvents.length > 3 && <div className="text-[8px] text-center text-gray-300">+{dayEvents.length - 3}</div>}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 );
             };
 
             return (
-                <div className="max-w-md mx-auto bg-white min-h-screen pb-28 relative shadow-2xl overflow-x-hidden">
+                <div className="max-w-md mx-auto bg-white min-h-screen pb-32 relative shadow-2xl">
                     {/* Header */}
-                    <header className="p-6 bg-white/90 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100">
+                    <header className="p-6 bg-white/90 backdrop-blur-md sticky top-0 z-40 border-b border-slate-50">
                         <div className="flex justify-between items-center mb-6">
-                            <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2 cursor-pointer" onClick={() => setShowMonthPicker(!showMonthPicker)}>
+                            <h1 className="text-2xl font-black text-slate-800 tracking-tight">
                                 {currentDate.getFullYear()}年 {MONTHS[currentDate.getMonth()]}
-                                <ChevronDown size={20} className="text-gray-300" />
                             </h1>
-                            <div className="flex bg-gray-100 p-1 rounded-2xl">
-                                <button onClick={() => setView('month')} className={`p-2.5 rounded-xl ${view === 'month' ? 'bg-white shadow text-blue-600' : 'text-gray-400'}`}><Calendar size={18} /></button>
-                                <button onClick={() => setView('day')} className={`p-2.5 rounded-xl ${view === 'day' ? 'bg-white shadow text-blue-600' : 'text-gray-400'}`}><CalendarDays size={18} /></button>
-                                <button onClick={() => setView('items')} className={`p-2.5 rounded-xl ${view === 'items' ? 'bg-white shadow text-blue-600' : 'text-gray-400'}`}><Layers size={18} /></button>
+                            <div className="flex bg-slate-100 p-1 rounded-2xl">
+                                <button onClick={() => setView('month')} className={`p-2.5 rounded-xl transition-all ${view==='month' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-calendar-days"></i></button>
+                                <button onClick={() => setView('day')} className={`p-2.5 rounded-xl transition-all ${view==='day' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-list-check"></i></button>
+                                <button onClick={() => setView('items')} className={`p-2.5 rounded-xl transition-all ${view==='items' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><i className="fa-solid fa-layer-group"></i></button>
                             </div>
                         </div>
-
-                        {showMonthPicker && (
-                            <div className="absolute top-full left-6 right-6 mt-2 bg-white border border-gray-100 shadow-2xl rounded-3xl p-6 z-50 animate-pop">
-                                <div className="grid grid-cols-4 gap-2">
-                                    {MONTHS.map((m, i) => (
-                                        <button key={m} onClick={() => { setCurrentDate(new Date(currentDate.setMonth(i))); setShowMonthPicker(false); }} className={`py-3 text-xs font-black rounded-xl ${currentDate.getMonth() === i ? 'bg-blue-600 text-white' : 'bg-gray-50'}`}>{m}</button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-2 bg-gray-50 rounded-xl text-slate-400"><ChevronLeft size={18} /></button>
-                                <button onClick={() => setCurrentDate(new Date())} className="px-6 py-2 bg-gray-50 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500">Today</button>
-                                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))} className="p-2 bg-gray-50 rounded-xl text-slate-400"><ChevronRight size={18} /></button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:bg-white border border-transparent hover:border-slate-100 transition-all"><i className="fa-solid fa-chevron-left"></i></button>
+                                <button onClick={() => setCurrentDate(new Date())} className="px-5 py-2 bg-slate-50 rounded-xl text-[10px] font-black uppercase text-slate-500 tracking-widest hover:bg-white hover:text-blue-600 transition-all">Today</button>
+                                <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:bg-white border border-transparent hover:border-slate-100 transition-all"><i className="fa-solid fa-chevron-right"></i></button>
                             </div>
                             <div className="flex -space-x-2">
-                                {categories.map(cat => (
-                                    <button key={cat.id} onClick={() => setVisibleLayers(prev => prev.includes(cat.id) ? prev.filter(i=>i!==cat.id) : [...prev, cat.id])} 
-                                        className={`w-8 h-8 rounded-full border-2 border-white shadow-sm transition-all ${visibleLayers.includes(cat.id) ? 'scale-110 z-10' : 'opacity-20 grayscale'}`} style={{ backgroundColor: cat.color }} />
+                                {categories.map(c => (
+                                    <button key={c.id} onClick={() => setVisibleLayers(prev => prev.includes(c.id) ? prev.filter(i=>i!==c.id) : [...prev, c.id])} 
+                                        className={`w-8 h-8 rounded-full border-2 border-white shadow-sm transition-all ${visibleLayers.includes(c.id) ? 'scale-110 z-10' : 'opacity-20 grayscale'}`} style={{backgroundColor: c.color}} />
                                 ))}
                             </div>
                         </div>
                     </header>
 
-                    {/* Main Content */}
+                    {/* Content Area */}
                     <main className="p-5">
                         {view === 'month' && <MonthView />}
                         
                         {view === 'day' && (
-                            <div className="space-y-6 animate-pop">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="bg-blue-600 text-white w-14 h-14 rounded-2xl flex flex-col items-center justify-center shadow-lg">
+                            <div className="space-y-6 animate-up">
+                                <div className="flex items-center gap-5 mb-8">
+                                    <div className="bg-slate-900 text-white w-14 h-14 rounded-2xl flex flex-col items-center justify-center shadow-xl">
                                         <span className="text-[10px] font-black uppercase">{WEEKDAYS[currentDate.getDay()]}</span>
                                         <span className="text-xl font-black">{currentDate.getDate()}</span>
                                     </div>
                                     <div>
                                         <h2 className="text-lg font-black text-slate-800">{currentDate.getFullYear()}年 {currentDate.getMonth()+1}月</h2>
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{getEventsForDate(currentDate).length} 項行程</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{getEventsForDate(currentDate).length} 個行程計畫</p>
                                     </div>
                                 </div>
                                 {getEventsForDate(currentDate).map(ev => {
                                     const cat = categories.find(c => c.id === ev.type);
                                     return (
-                                        <div key={ev.id} onClick={() => setSelectedDetail(ev)} className="flex items-center gap-4 cursor-pointer group">
-                                            <div className="text-[10px] font-black text-gray-300 w-12 text-right">{ev.hasTime ? ev.time : 'ALL DAY'}</div>
-                                            <div className="flex-1 p-5 rounded-[24px] border transition-all group-hover:shadow-md" style={{ backgroundColor: cat?.lightColor, borderColor: cat?.color }}>
+                                        <div key={ev.id} onClick={() => { setForm(ev); setIsModalOpen(true); }} className="flex items-center gap-4 cursor-pointer group">
+                                            <div className="text-[11px] font-black text-slate-300 w-12 text-right">{ev.hasTime ? ev.time : '整天'}</div>
+                                            <div className="flex-1 p-5 rounded-[24px] border border-slate-100 bg-white transition-all group-hover:shadow-md" style={{borderLeft: `6px solid ${cat?.color}`}}>
                                                 <div className="flex justify-between items-center">
-                                                    <span className="font-black text-slate-700">{ev.title}</span>
-                                                    <Info size={16} className="text-gray-300" />
+                                                    <div>
+                                                        <span className="text-[9px] font-black opacity-40 uppercase block mb-1">{cat?.name}</span>
+                                                        <span className="font-bold text-slate-700">{ev.title}</span>
+                                                    </div>
+                                                    <i className="fa-solid fa-chevron-right text-slate-200"></i>
                                                 </div>
                                             </div>
                                         </div>
                                     );
                                 })}
+                                {getEventsForDate(currentDate).length === 0 && <div className="py-20 text-center opacity-20 font-black"><i className="fa-solid fa-calendar-xmark text-5xl mb-4 block"></i>今日無計畫</div>}
                             </div>
                         )}
 
                         {view === 'items' && (
-                            <div className="space-y-4 animate-pop">
-                                <button onClick={() => {setCatForm({name:'', color:'#3B82F6'}); setIsCategoryModalOpen(true);}} className="w-full py-5 border-2 border-dashed border-gray-200 rounded-3xl text-gray-400 font-black text-sm flex items-center justify-center gap-2"><Plus size={18}/> 新增類別</button>
+                            <div className="space-y-4 animate-up">
+                                <button onClick={() => { setCatForm({name:'', color:'#3B82F6'}); setIsCatModalOpen(true); }} className="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black text-sm flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"><i className="fa-solid fa-plus"></i> 新增項目類別</button>
                                 {categories.map(cat => (
-                                    <div key={cat.id} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex justify-between items-center">
+                                    <div key={cat.id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex justify-between items-center group">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: cat.color }} />
+                                            <div className="w-5 h-5 rounded-full shadow-inner" style={{backgroundColor: cat.color}} />
                                             <span className="font-black text-slate-700">{cat.name}</span>
                                         </div>
-                                        <button onClick={() => setCategories(categories.filter(c=>c.id!==cat.id))} className="text-gray-300 hover:text-red-500"><Trash2 size={18}/></button>
+                                        <button onClick={() => setCategories(categories.filter(c=>c.id!==cat.id))} className="text-slate-200 hover:text-red-500 transition-all"><i className="fa-solid fa-trash-can"></i></button>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </main>
 
-                    {/* Floating Add Button */}
+                    {/* FAB 漂浮按鈕 */}
                     <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-[360px] bg-slate-900 shadow-2xl text-white p-3 rounded-[35px] flex justify-between items-center z-50">
                         <div className="flex items-center gap-4 pl-6">
-                            <div className="bg-blue-500/20 p-2 rounded-xl text-blue-400"><Clock size={20}/></div>
-                            <span className="text-sm font-black">{formatKey(currentDate)}</span>
+                            <i className="fa-solid fa-clock text-blue-400"></i>
+                            <span className="text-sm font-black tracking-tight">{formatKey(currentDate)}</span>
                         </div>
                         <button onClick={() => {
-                            setModalMode('add');
-                            setFormEvent({ id: null, title: '', description: '', type: 'work', isRecurring: false, repeatDays: [], date: formatKey(currentDate), hasTime: false, time: '12:00', hasEndDate: false, endDate: '' });
+                            setForm({ id: null, title: '', type: '1', date: formatKey(currentDate), hasTime: false, time: '12:00', isRecurring: false, repeatDays: [], hasEndDate: false, endDate: '' });
                             setIsModalOpen(true);
-                        }} className="bg-blue-600 w-14 h-14 rounded-[26px] flex items-center justify-center shadow-xl active:scale-90 transition-transform">
-                            <Plus size={28} strokeWidth={3} />
+                        }} className="bg-blue-600 w-14 h-14 rounded-[26px] flex items-center justify-center shadow-xl hover:scale-105 active:scale-90 transition-all">
+                            <i className="fa-solid fa-plus text-2xl"></i>
                         </button>
                     </div>
 
-                    {/* Event Form Modal */}
+                    {/* 行程編輯彈窗 */}
                     {isModalOpen && (
-                        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm">
-                            <div className="bg-white w-full max-w-md rounded-t-[45px] p-8 max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl animate-pop">
+                        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-md flex items-end">
+                            <div className="bg-white w-full max-w-md rounded-t-[45px] p-8 max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl animate-up">
                                 <div className="flex justify-between items-center mb-8">
-                                    <h2 className="text-2xl font-black text-slate-800">{modalMode === 'add' ? '規劃行程' : '編輯計畫'}</h2>
-                                    <button onClick={() => setIsModalOpen(false)} className="p-3 bg-gray-100 rounded-2xl"><X size={20}/></button>
+                                    <h2 className="text-2xl font-black text-slate-800 tracking-tighter">編輯計畫</h2>
+                                    <button onClick={() => setIsModalOpen(false)} className="p-3 bg-slate-50 rounded-2xl text-slate-400"><i className="fa-solid fa-xmark"></i></button>
                                 </div>
                                 <div className="space-y-6">
-                                    <input type="text" placeholder="行程標題" value={formEvent.title} onChange={e=>setFormEvent({...formEvent, title: e.target.value})} className="w-full p-5 bg-gray-50 rounded-2xl font-black text-xl outline-none focus:ring-2 focus:ring-blue-500" />
-                                    
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">計畫標題</label>
+                                        <input type="text" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} placeholder="要做什麼呢？" className="w-full p-5 bg-slate-50 rounded-3xl font-black text-xl outline-none border-2 border-transparent focus:border-blue-500 transition-all" />
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-[10px] font-black text-gray-400 uppercase ml-2">日期</label><input type="date" value={formEvent.date} onChange={e=>setFormEvent({...formEvent, date: e.target.value})} className="w-full p-4 bg-gray-50 rounded-2xl font-black outline-none" /></div>
-                                        <div><label className="text-[10px] font-black text-gray-400 uppercase ml-2">時間</label><input type="time" disabled={!formEvent.hasTime} value={formEvent.time} onChange={e=>setFormEvent({...formEvent, time: e.target.value})} className={`w-full p-4 bg-gray-50 rounded-2xl font-black outline-none ${!formEvent.hasTime && 'opacity-30'}`} /></div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">日期</label>
+                                            <input type="date" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-black outline-none border-2 border-transparent focus:border-blue-500 transition-all" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">時間</label>
+                                            <input type="time" disabled={!form.hasTime} value={form.time} onChange={e=>setForm({...form, time: e.target.value})} className={`w-full p-4 bg-slate-50 rounded-2xl font-black outline-none border-2 border-transparent focus:border-blue-500 transition-all ${!form.hasTime && 'opacity-20'}`} />
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between p-5 bg-gray-50 rounded-[28px]">
-                                        <div className="flex items-center gap-3 font-black text-sm text-slate-700"><Clock size={18} className="text-blue-500"/> 設定具體時間</div>
-                                        <button onClick={()=>setFormEvent({...formEvent, hasTime: !formEvent.hasTime})} className={`w-12 h-6 rounded-full relative transition-all ${formEvent.hasTime ? 'bg-blue-600' : 'bg-gray-200'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formEvent.hasTime ? 'left-7' : 'left-1'}`} /></button>
+                                    <div className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl">
+                                        <div className="flex items-center gap-3 font-black text-sm text-slate-700"><i className="fa-solid fa-clock text-blue-500"></i> 設定具體時間</div>
+                                        <button onClick={()=>setForm({...form, hasTime: !form.hasTime})} className={`w-12 h-6 rounded-full relative transition-all ${form.hasTime ? 'bg-blue-600' : 'bg-slate-200'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${form.hasTime ? 'left-7' : 'left-1'}`} /></button>
                                     </div>
 
-                                    <div className="flex items-center justify-between p-5 bg-gray-50 rounded-[28px]">
-                                        <div className="flex items-center gap-3 font-black text-sm text-slate-700"><CheckCircle2 size={18} className="text-green-500"/> 每週重複</div>
-                                        <button onClick={()=>setFormEvent({...formEvent, isRecurring: !formEvent.isRecurring})} className={`w-12 h-6 rounded-full relative transition-all ${formEvent.isRecurring ? 'bg-green-500' : 'bg-gray-200'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formEvent.isRecurring ? 'left-7' : 'left-1'}`} /></button>
+                                    <div className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl">
+                                        <div className="flex items-center gap-3 font-black text-sm text-slate-700"><i className="fa-solid fa-repeat text-green-500"></i> 每週重複</div>
+                                        <button onClick={()=>setForm({...form, isRecurring: !form.isRecurring})} className={`w-12 h-6 rounded-full relative transition-all ${form.isRecurring ? 'bg-green-500' : 'bg-slate-200'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${form.isRecurring ? 'left-7' : 'left-1'}`} /></button>
                                     </div>
 
-                                    {formEvent.isRecurring && (
-                                        <div className="space-y-4 animate-pop">
-                                            <div className="flex justify-between gap-2">
+                                    {form.isRecurring && (
+                                        <div className="space-y-4 p-5 bg-slate-50 rounded-3xl border border-slate-100">
+                                            <div className="flex justify-between gap-1">
                                                 {WEEKDAYS.map((d, i) => (
                                                     <button key={i} onClick={() => {
-                                                        const days = formEvent.repeatDays.includes(i) ? formEvent.repeatDays.filter(day => day !== i) : [...formEvent.repeatDays, i];
-                                                        setFormEvent({...formEvent, repeatDays: days});
-                                                    }} className={`flex-1 py-3 rounded-xl text-xs font-black ${formEvent.repeatDays.includes(i) ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 text-gray-400'}`}>{d}</button>
+                                                        const days = form.repeatDays.includes(i) ? form.repeatDays.filter(day => day !== i) : [...form.repeatDays, i];
+                                                        setForm({...form, repeatDays: days});
+                                                    }} className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${form.repeatDays.includes(i) ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-300'}`}>{d}</button>
                                                 ))}
                                             </div>
-                                            <div className="p-4 bg-blue-50/50 rounded-2xl flex items-center justify-between">
-                                                <div className="flex items-center gap-2 text-xs font-black text-slate-600"><CalendarRange size={16} /> 設定截止日</div>
-                                                <input type="date" value={formEvent.endDate} onChange={e=>setFormEvent({...formEvent, hasEndDate:true, endDate: e.target.value})} className="bg-transparent text-xs font-black outline-none" />
+                                            <div className="flex items-center justify-between pt-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">截止日</label>
+                                                <input type="date" value={form.endDate} onChange={e=>setForm({...form, hasEndDate: true, endDate: e.target.value})} className="bg-transparent text-xs font-black outline-none" />
                                             </div>
                                         </div>
                                     )}
 
                                     <div className="grid grid-cols-2 gap-3">
                                         {categories.map(cat => (
-                                            <button key={cat.id} onClick={()=>setFormEvent({...formEvent, type: cat.id})} 
-                                                className={`p-4 rounded-2xl flex items-center gap-3 border-2 transition-all ${formEvent.type === cat.id ? 'border-slate-800 bg-slate-800 text-white' : 'border-gray-100 text-slate-400'}`}>
+                                            <button key={cat.id} onClick={()=>setForm({...form, type: cat.id})} className={`p-4 rounded-2xl flex items-center gap-3 border-2 transition-all ${form.type === cat.id ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-50 bg-slate-50 text-slate-400'}`}>
                                                 <div className="w-3 h-3 rounded-full" style={{backgroundColor: cat.color}} />
-                                                <span className="text-xs font-black">{cat.name}</span>
+                                                <span className="text-[11px] font-black uppercase tracking-widest">{cat.name}</span>
                                             </button>
                                         ))}
                                     </div>
 
-                                    <button onClick={handleSaveEvent} className="w-full py-5 bg-blue-600 text-white rounded-3xl font-black text-lg shadow-xl shadow-blue-200 mt-4 active:scale-95 transition-transform">儲存計畫</button>
+                                    <div className="flex gap-3 mt-4">
+                                        {form.id && <button onClick={() => { setEvents(events.filter(e=>e.id!==form.id)); setIsModalOpen(false); }} className="flex-1 py-5 bg-red-50 text-red-500 rounded-[2rem] font-black">刪除計畫</button>}
+                                        <button onClick={saveEvent} className="flex-[2] py-5 bg-blue-600 text-white rounded-[2rem] font-black text-lg shadow-xl shadow-blue-100 active:scale-95 transition-all">儲存計畫</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Detail Modal */}
-                    {selectedDetail && (
-                        <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-                            <div className="bg-white w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl animate-pop">
-                                <div className="h-28 p-8 flex items-end relative" style={{ backgroundColor: categories.find(c=>c.id===selectedDetail.type)?.color }}>
-                                    <button onClick={()=>setSelectedDetail(null)} className="absolute top-6 right-6 p-2 bg-white/20 rounded-full text-white"><X size={18}/></button>
-                                    <h2 className="text-xl font-black text-white">{selectedDetail.title}</h2>
-                                </div>
-                                <div className="p-8 space-y-4">
-                                    <div className="flex items-center gap-3 text-sm font-black text-slate-600"><Calendar size={18} className="text-blue-500"/> {selectedDetail.date} {selectedDetail.hasTime && `• ${selectedDetail.time}`}</div>
-                                    <div className="flex gap-3 pt-4">
-                                        <button onClick={() => {setModalMode('edit'); setFormEvent(selectedDetail); setIsModalOpen(true); setSelectedDetail(null);}} className="flex-1 py-3 bg-blue-50 text-blue-600 rounded-2xl font-black text-xs">編輯</button>
-                                        <button onClick={() => {setEvents(events.filter(e=>e.id!==selectedDetail.id)); setSelectedDetail(null);}} className="flex-1 py-3 bg-red-50 text-red-500 rounded-2xl font-black text-xs">刪除</button>
-                                    </div>
+                    {/* 類別編輯彈窗 */}
+                    {isCatModalOpen && (
+                        <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6">
+                            <div className="bg-white w-full max-w-xs rounded-[3rem] p-8 shadow-2xl animate-up">
+                                <h2 className="text-xl font-black mb-6">新增分類項目</h2>
+                                <div className="space-y-4">
+                                    <input type="text" placeholder="類別名稱" value={catForm.name} onChange={e=>setCatForm({...catForm, name: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-black outline-none" />
+                                    <input type="color" value={catForm.color} onChange={e=>setCatForm({...catForm, color: e.target.value})} className="w-full h-12 bg-transparent cursor-pointer" />
+                                    <button onClick={() => {
+                                        setCategories([...categories, { ...catForm, id: Date.now().toString() }]);
+                                        setIsCatModalOpen(false);
+                                    }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg">儲存類別</button>
+                                    <button onClick={()=>setIsCatModalOpen(false)} className="w-full py-2 text-slate-300 font-bold">取消</button>
                                 </div>
                             </div>
                         </div>
