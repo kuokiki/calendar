@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極簡行事曆 - 精修版</title>
+    <title>極簡行事曆 - 管理版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         :root { --accent-blue: #A3C4F3; --text-dark: #1E293B; }
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #F9FBFD; color: var(--text-dark); -webkit-tap-highlight-color: transparent; }
         input[type="date"], input[type="time"], input[type="text"], textarea { 
-            background-color: #F1F5F9; border: none; border-radius: 12px; padding: 12px 16px; width: 100%; outline: none; font-weight: 500; 
-            line-height: 1.5; /* 解決說明欄文字歪掉問題 */
-            display: block;
+            background-color: #F1F5F9; border: none; border-radius: 12px; padding: 14px 18px; width: 100%; outline: none; font-weight: 500; 
+            line-height: 1.6; display: block;
         }
+        /* 解決說明欄位置太左邊的問題 */
+        textarea { padding: 16px 20px; min-height: 100px; }
         .modal-overlay { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
-        .fade-in { animation: fadeIn 0.25s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.2s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .day-cell { min-height: 105px; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
     </style>
 </head>
@@ -28,17 +29,18 @@
     <div id="modal-container"></div>
 
     <script>
-        // --- 圖示庫 ---
         const SVG = {
             calendar: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
             days: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 2v4M16 2v4M3 10h18M21 4H3v16h18V4z"/></svg>',
             layers: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m12.83 2.18-9.07 4.32a2 2 0 0 0 0 3.38L12.83 14a2 2 0 0 0 1.66 0l9.07-4.32a2 2 0 0 0 0-3.38L13.66 2.18a2 2 0 0 0-1.66 0z"/><path d="m2.1 14.74 9.07 4.32a2 2 0 0 0 1.66 0l9.07-4.32"/><path d="m2.1 10.58 9.07 4.32a2 2 0 0 0 1.66 0l9.07-4.32"/></svg>',
-            plus: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5v14"/></svg>',
+            plus: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5v14"/></svg>',
             x: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>',
-            trash: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>'
+            trash: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+            edit: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+            up: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3"><path d="m18 15-6-6-6 6"/></svg>',
+            down: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg>'
         };
 
-        // --- 狀態 ---
         let state = {
             currentDate: new Date(),
             view: 'month',
@@ -49,6 +51,7 @@
             ],
             events: JSON.parse(localStorage.getItem('evs')) || [],
             exceptions: JSON.parse(localStorage.getItem('exs')) || [],
+            expandedCat: null, // 用於儲存哪個項目被展開看行程
             tempEv: {},
             editScope: 'series'
         };
@@ -64,7 +67,9 @@
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         };
 
-        const getEvents = (date) => {
+        const getEventsByCat = (catId) => state.events.filter(e => e.type === catId);
+
+        const getEventsForDay = (date) => {
             const dStr = fmtDate(date);
             const dow = date.getDay();
             return state.events.filter(e => {
@@ -80,7 +85,6 @@
             }).sort((a,b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
         };
 
-        // --- 渲染 ---
         const render = () => {
             renderHeader();
             renderMain();
@@ -107,13 +111,9 @@
             `;
         };
 
-        // 修正切換邏輯：日檢視跳日，月檢視跳月
         const navigate = (dir) => {
-            if (state.view === 'day') {
-                state.currentDate.setDate(state.currentDate.getDate() + dir);
-            } else {
-                state.currentDate.setMonth(state.currentDate.getMonth() + dir);
-            }
+            if (state.view === 'day') state.currentDate.setDate(state.currentDate.getDate() + dir);
+            else state.currentDate.setMonth(state.currentDate.getMonth() + dir);
             render();
         };
 
@@ -124,11 +124,11 @@
                 const first = new Date(y, m, 1).getDay(), num = new Date(y, m+1, 0).getDate();
                 const days = [...Array(first).fill(null), ...Array(num).fill(0).map((_,i)=>new Date(y,m,i+1))];
                 main.innerHTML = `
-                    <div class="grid grid-cols-7 gap-px bg-slate-100 rounded-[24px] overflow-hidden border border-slate-50 shadow-sm animate-in">
+                    <div class="grid grid-cols-7 gap-px bg-slate-100 rounded-[24px] overflow-hidden border border-slate-50 animate-in">
                         ${['日','一','二','三','四','五','六'].map(d=>`<div class="bg-white p-3 text-center text-[10px] font-bold text-slate-300">${d}</div>`).join('')}
                         ${days.map(day => {
                             if(!day) return `<div class="bg-slate-50/50 min-h-[95px]"></div>`;
-                            const evs = getEvents(day);
+                            const evs = getEventsForDay(day);
                             const isToday = fmtDate(day) === fmtDate(new Date());
                             return `
                                 <div onclick="state.currentDate=new Date('${day}'); state.view='day'; render();" class="day-cell bg-white p-1">
@@ -140,16 +140,16 @@
                     </div>
                 `;
             } else if (state.view === 'day') {
-                const evs = getEvents(state.currentDate);
+                const evs = getEventsForDay(state.currentDate);
                 main.innerHTML = `
                     <div class="bg-white rounded-[32px] p-6 shadow-sm border border-slate-50 min-h-[450px] animate-in">
                         <h2 class="text-xl font-black mb-6">${fmtDate(state.currentDate)}</h2>
                         <div class="space-y-4">
                             ${evs.map(e => `
                                 <div onclick="openEventForm('edit', '${e.id}')" class="p-5 rounded-3xl border flex justify-between items-center cursor-pointer hover:shadow-md transition-all" style="border-left:5px solid ${findCat(e.type).color}; background:${findCat(e.type).color}10">
-                                    <div class="flex-1 overflow-hidden">
+                                    <div class="flex-1">
                                         <div class="text-[10px] font-black opacity-40 uppercase tracking-widest">${e.hasTime?e.time:'全天'}</div>
-                                        <div class="font-bold text-slate-700 truncate">${e.title}</div>
+                                        <div class="font-bold text-slate-700">${e.title}</div>
                                         ${e.desc ? `<div class="text-[11px] text-slate-400 mt-2 leading-relaxed">${e.desc}</div>` : ''}
                                     </div>
                                     <span class="text-slate-300 ml-4">▶</span>
@@ -162,19 +162,39 @@
             } else {
                 main.innerHTML = `
                     <div class="space-y-4 animate-in">
-                        <button onclick="openCategoryModal()" class="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black">+ 新增項目分類</button>
-                        ${state.categories.map(c => `
-                            <div class="bg-white p-6 rounded-3xl border border-slate-50 flex justify-between items-center shadow-sm">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-4 h-4 rounded-full" style="background:${c.color}"></div>
-                                    <span class="font-black text-slate-700">${c.name}</span>
+                        <button onclick="openCategoryModal('add')" class="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black">+ 新增項目分類</button>
+                        ${state.categories.map((c, idx) => {
+                            const catEvs = getEventsByCat(c.id);
+                            const isExpanded = state.expandedCat === c.id;
+                            return `
+                            <div class="bg-white rounded-3xl border border-slate-50 shadow-sm overflow-hidden">
+                                <div class="p-6 flex justify-between items-center">
+                                    <div class="flex items-center gap-4 flex-1 cursor-pointer" onclick="state.expandedCat = (state.expandedCat==='${c.id}'?null:'${c.id}'); render();">
+                                        <div class="w-4 h-4 rounded-full" style="background:${c.color}"></div>
+                                        <span class="font-black text-slate-700">${c.name} (${catEvs.length})</span>
+                                    </div>
+                                    <div class="flex gap-1 items-center">
+                                        <div class="flex flex-col mr-2">
+                                            <button onclick="reorderCat(${idx}, -1)" class="p-1 text-slate-300 hover:text-blue-500">${SVG.up}</button>
+                                            <button onclick="reorderCat(${idx}, 1)" class="p-1 text-slate-300 hover:text-blue-500">${SVG.down}</button>
+                                        </div>
+                                        <button onclick="openEventForm('add', null, '${c.id}')" class="p-2 bg-blue-50 text-blue-500 rounded-xl">${SVG.plus}</button>
+                                        <button onclick="openCategoryModal('edit', '${c.id}')" class="p-2 text-slate-300 hover:text-blue-500">${SVG.edit}</button>
+                                    </div>
                                 </div>
-                                <div class="flex gap-2">
-                                    <button onclick="openEventForm('add', null, '${c.id}')" class="p-2 bg-blue-50 text-blue-500 rounded-xl">${SVG.plus}</button>
-                                    <button onclick="deleteCat('${c.id}')" class="p-2 text-slate-100 hover:text-red-500">${SVG.trash}</button>
-                                </div>
-                            </div>
-                        `).join('')}
+                                ${isExpanded ? `
+                                    <div class="bg-slate-50/50 p-4 border-t border-slate-50 space-y-2">
+                                        ${catEvs.map(e => `
+                                            <div onclick="openEventForm('edit', '${e.id}')" class="text-xs p-3 bg-white rounded-xl border border-slate-100 flex justify-between cursor-pointer">
+                                                <span class="font-bold text-slate-600">${e.title}</span>
+                                                <span class="text-slate-300">${e.date}</span>
+                                            </div>
+                                        `).join('')}
+                                        ${catEvs.length === 0 ? '<div class="text-center text-[10px] text-slate-300 py-2">尚無行程</div>' : ''}
+                                    </div>
+                                ` : ''}
+                            </div>`;
+                        }).join('')}
                     </div>
                 `;
             }
@@ -188,9 +208,20 @@
         };
 
         const findCat = (id) => state.categories.find(c=>c.id===id) || state.categories[0];
-        const setView = (v) => { state.view = v; render(); };
+        const setView = (v) => { state.view = v; state.expandedCat = null; render(); };
 
-        // --- 表單邏輯 ---
+        // --- 排序邏輯 ---
+        const reorderCat = (idx, dir) => {
+            const target = idx + dir;
+            if (target >= 0 && target < state.categories.length) {
+                const temp = state.categories[idx];
+                state.categories[idx] = state.categories[target];
+                state.categories[target] = temp;
+                render();
+            }
+        };
+
+        // --- 行程表單 ---
         const openEventForm = (mode, id = null, catId = null) => {
             state.editScope = 'series';
             if (mode === 'add') {
@@ -212,19 +243,12 @@
                             <button onclick="closeModal()">${SVG.x}</button>
                         </div>
                         <div class="space-y-5">
-                            ${(mode==='edit' && f.isRecurring) ? `
-                                <div class="flex p-1 bg-slate-100 rounded-2xl mb-4 text-[11px] font-black">
-                                    <button onclick="state.editScope='series'; renderEventModal('edit')" class="flex-1 py-3 rounded-xl ${state.editScope==='series'?'bg-white shadow text-blue-600':'text-slate-400'}">修改整個系列</button>
-                                    <button onclick="state.editScope='single'; renderEventModal('edit')" class="flex-1 py-3 rounded-xl ${state.editScope==='single'?'bg-white shadow text-blue-600':'text-slate-400'}">僅修改這一次</button>
-                                </div>
-                            ` : ''}
-                            
-                            <input id="f-title" type="text" placeholder="標題" value="${f.title}" oninput="state.tempEv.title=this.value">
-                            <textarea id="f-desc" placeholder="說明欄 (自由選填)" rows="3" oninput="state.tempEv.desc=this.value">${f.desc || ''}</textarea>
+                            <input id="f-title" type="text" placeholder="計畫標題" value="${f.title}" oninput="state.tempEv.title=this.value">
+                            <textarea id="f-desc" placeholder="說明欄 (自由選填)" oninput="state.tempEv.desc=this.value">${f.desc || ''}</textarea>
 
                             <div class="grid grid-cols-2 gap-4">
-                                <div><label class="text-[10px] font-black text-slate-300 block mb-1">日期</label><input id="f-date" type="date" value="${f.date}" onchange="state.tempEv.date=this.value"></div>
-                                <div id="time-picker-box" style="${f.hasTime?'':'display:none'}"><label class="text-[10px] font-black text-slate-300 block mb-1">時間</label><input id="f-time" type="time" value="${f.time}" onchange="state.tempEv.time=this.value"></div>
+                                <div><label class="text-[10px] font-black text-slate-300 block mb-1">日期</label><input type="date" value="${f.date}" onchange="state.tempEv.date=this.value"></div>
+                                <div id="time-box" style="${f.hasTime?'':'display:none'}"><label class="text-[10px] font-black text-slate-300 block mb-1">時間</label><input type="time" value="${f.time}" onchange="state.tempEv.time=this.value"></div>
                             </div>
 
                             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
@@ -241,21 +265,22 @@
                                 <div class="p-4 border-2 border-slate-50 rounded-3xl space-y-4">
                                     <div class="flex justify-between">${['日','一','二','三','四','五','六'].map((d,i)=>`<button onclick="toggleDay(${i}, '${mode}')" class="w-8 h-8 rounded-lg text-[10px] font-bold ${f.repeatDays.includes(i)?'bg-blue-600 text-white':'bg-slate-100 text-slate-400'}">${d}</button>`).join('')}</div>
                                     <div class="flex items-center justify-between pt-2">
-                                        <span class="text-[10px] font-black text-slate-400">截止日期 (選填)</span>
+                                        <span class="text-[10px] font-black text-slate-400">截止日期</span>
                                         <input type="date" value="${f.endDate || ''}" onchange="state.tempEv.endDate=this.value" class="!w-auto !p-2 !text-xs">
                                     </div>
-                                </div>
-                            ` : ''}
+                                </div>` : ''}
 
                             <div class="grid grid-cols-3 gap-2">
                                 ${state.categories.map(c=>`<button onclick="state.tempEv.type='${c.id}'; renderEventModal('${mode}')" class="p-2 rounded-xl border-2 text-[10px] font-bold ${f.type===c.id?'border-slate-800 bg-slate-800 text-white':'border-slate-50 text-slate-400'}">${c.name}</button>`).join('')}
                             </div>
 
-                            <button onclick="saveEvent('${mode}')" class="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg">儲存</button>
+                            <div class="flex gap-2 pt-4">
+                                <button onclick="saveEvent('${mode}')" class="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg">儲存</button>
+                                ${mode==='edit'?`<button onclick="deleteEvent()" class="flex-1 py-4 bg-red-50 text-red-500 rounded-2xl font-bold">${SVG.trash}</button>`:''}
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
+                </div>`;
         };
 
         const toggleDay = (i, mode) => {
@@ -266,46 +291,50 @@
 
         const saveEvent = (mode) => {
             if(!state.tempEv.title) return alert('請輸入標題');
-            if (mode === 'add') {
-                state.events.push(state.tempEv);
-            } else {
-                if (state.editScope === 'single' && state.tempEv.isRecurring) {
-                    state.exceptions.push({ id: state.tempEv.id, date: fmtDate(state.currentDate) });
-                    state.events.push({ ...state.tempEv, id: Date.now().toString(), isRecurring: false });
-                } else {
-                    state.events = state.events.map(e => e.id === state.tempEv.id ? state.tempEv : e);
-                }
-            }
+            if (mode === 'add') state.events.push(state.tempEv);
+            else state.events = state.events.map(e => e.id === state.tempEv.id ? state.tempEv : e);
             closeModal(); render();
         };
 
-        // --- 分類 ---
-        const openCategoryModal = () => {
-            document.getElementById('modal-container').innerHTML = `
-                <div class="fixed inset-0 z-[60] flex items-center justify-center p-6 modal-overlay">
-                    <div class="bg-white w-full max-w-xs rounded-[32px] p-8 shadow-2xl relative">
-                        <button onclick="closeModal()" class="absolute top-6 right-6">${SVG.x}</button>
-                        <h3 class="font-black mb-6 text-center">新增分類</h3>
-                        <input id="c-name" type="text" placeholder="分類名稱" class="mb-4">
-                        <input id="c-color" type="color" value="#3B82F6" class="w-full h-10 mb-8 bg-transparent">
-                        <button onclick="addCat()" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-black">儲存</button>
-                    </div>
-                </div>
-            `;
+        const deleteEvent = () => {
+            state.events = state.events.filter(e => e.id !== state.tempEv.id);
+            closeModal(); render();
         };
 
-        const addCat = () => {
+        // --- 分類編輯 ---
+        const openCategoryModal = (mode, id = null) => {
+            let cat = { name: '', color: '#3B82F6' };
+            if (mode === 'edit') cat = state.categories.find(c => c.id === id);
+            
+            document.getElementById('modal-container').innerHTML = `
+                <div class="fixed inset-0 z-[60] flex items-center justify-center p-6 modal-overlay">
+                    <div class="bg-white w-full max-w-xs rounded-[32px] p-8 shadow-2xl relative animate-in">
+                        <button onclick="closeModal()" class="absolute top-6 right-6">${SVG.x}</button>
+                        <h3 class="font-black mb-6 text-center">${mode==='add'?'新增項目':'編輯項目'}</h3>
+                        <input id="c-name" type="text" placeholder="項目名稱" class="mb-4" value="${cat.name}">
+                        <input id="c-color" type="color" value="${cat.color}" class="w-full h-10 mb-8 bg-transparent">
+                        <div class="flex gap-2">
+                            <button onclick="saveCat('${mode}', '${id}')" class="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black">儲存</button>
+                            ${mode==='edit'?`<button onclick="deleteCat('${id}')" class="p-4 text-red-500 bg-red-50 rounded-2xl">${SVG.trash}</button>`:''}
+                        </div>
+                    </div>
+                </div>`;
+        };
+
+        const saveCat = (mode, id) => {
             const name = document.getElementById('c-name').value;
+            const color = document.getElementById('c-color').value;
             if(!name) return;
-            state.categories.push({ id: Date.now().toString(), name, color: document.getElementById('c-color').value });
+            if (mode === 'add') state.categories.push({ id: Date.now().toString(), name, color });
+            else state.categories = state.categories.map(c => c.id === id ? {...c, name, color} : c);
             closeModal(); render();
         };
 
         const deleteCat = (id) => {
             if(state.categories.length > 1) {
-                state.categories = state.categories.filter(c=>c.id!==id);
-                state.events = state.events.filter(e=>e.type!==id);
-                render();
+                state.categories = state.categories.filter(c => c.id !== id);
+                state.events = state.events.filter(e => e.type !== id);
+                closeModal(); render();
             }
         };
 
