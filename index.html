@@ -3,29 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極簡行事曆 - 終極版</title>
+    <title>極簡行事曆 - 完美對齊版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        :root { --accent-blue: #3B82F6; --text-dark: #1E293B; }
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #F8FAFC; color: var(--text-dark); -webkit-tap-highlight-color: transparent; }
+        :root { --accent-blue: #3B82F6; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #F8FAFC; color: #1E293B; -webkit-tap-highlight-color: transparent; }
         
-        /* 1. 說明欄優化：增加內距確保文字不貼邊 */
-        input[type="date"], input[type="time"], input[type="text"], textarea { 
-            background-color: #F1F5F9; border: none; border-radius: 16px; padding: 16px 20px; width: 100%; outline: none; font-weight: 500; 
-            line-height: 1.6; display: block;
+        /* 統一輸入框樣式 */
+        input[type="text"], input[type="date"], input[type="time"], textarea { 
+            background-color: #F1F5F9; border: none; border-radius: 16px; padding: 16px 20px; width: 100%; outline: none; font-weight: 500; font-size: 16px; 
         }
-        textarea { min-height: 120px; text-indent: 4px; } /* 稍微往右縮排一點點更美觀 */
-
+        textarea { min-height: 120px; resize: none; }
+        
+        /* 解決跳動問題與隱藏邏輯 */
+        .hidden-section { display: none !important; }
         .modal-overlay { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(10px); }
         .animate-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        
-        /* 6. 修正時間格子：對齊並防止右邊太突 */
-        .date-time-grid { display: grid; grid-template-cols: 1.5fr 1fr; gap: 12px; }
-        
+
+        /* 顏色選取器美化 */
+        input[type="color"] { -webkit-appearance: none; border: none; width: 44px; height: 44px; border-radius: 12px; cursor: pointer; background: none; }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 2px solid white; border-radius: 12px; box-shadow: 0 0 0 1px #E2E8F0; }
+
         .day-cell { min-height: 105px; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="max-w-md mx-auto min-h-screen pb-32 relative shadow-2xl bg-white">
@@ -38,14 +40,12 @@
     <script>
         const SVG = {
             calendar: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
-            days: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 2v4M16 2v4M3 10h18M21 4H3v16h18V4z"/></svg>',
-            layers: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m12.83 2.18-9.07 4.32a2 2 0 0 0 0 3.38L12.83 14a2 2 0 0 0 1.66 0l9.07-4.32a2 2 0 0 0 0-3.38L13.66 2.18a2 2 0 0 0-1.66 0z"/><path d="m2.1 14.74 9.07 4.32a2 2 0 0 0 1.66 0l9.07-4.32"/><path d="m2.1 10.58 9.07 4.32a2 2 0 0 0 1.66 0l9.07-4.32"/></svg>',
+            days: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 2v4M16 2v4M3 10h18M21 4H3v16h18z"/></svg>',
+            layers: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
             plus: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5v14"/></svg>',
             x: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>',
-            trash: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>',
-            edit: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-            chevron: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg>',
-            order: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>'
+            trash: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+            chevron: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg>'
         };
 
         let state = {
@@ -58,7 +58,6 @@
             ],
             events: JSON.parse(localStorage.getItem('evs')) || [],
             exceptions: JSON.parse(localStorage.getItem('exs')) || [],
-            expandedCat: null,
             showDatePicker: false,
             tempEv: {},
             editScope: 'series'
@@ -70,29 +69,8 @@
             localStorage.setItem('exs', JSON.stringify(state.exceptions));
         };
 
-        const fmtDate = (d) => {
-            const date = new Date(d);
-            return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-        };
         const fmtISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-        const getEventsForDay = (date) => {
-            const dStr = fmtISO(date);
-            const dow = date.getDay();
-            return state.events.filter(e => {
-                if (state.exceptions.some(ex => ex.id === e.id && ex.date === dStr)) return false;
-                if (e.isRecurring) {
-                    const start = new Date(e.date);
-                    const current = new Date(dStr);
-                    if (current < start) return false;
-                    if (e.endDate && current > new Date(e.endDate)) return false;
-                    return e.repeatDays.includes(dow);
-                }
-                return e.date === dStr;
-            }).sort((a,b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
-        };
-
-        // --- 渲染 ---
         const render = () => {
             renderHeader();
             renderMain();
@@ -117,19 +95,19 @@
                                 <button onclick="changeYear(1)" class="p-2 hover:bg-slate-50 rounded-xl">▶</button>
                             </div>
                             <div class="grid grid-cols-3 gap-2">
-                                ${months.map((m, i) => `<button onclick="setMonth(${i})" class="py-2 text-sm font-bold rounded-xl ${d.getMonth() === i ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'hover:bg-slate-50 text-slate-500'}">${m}</button>`).join('')}
+                                ${months.map((m, i) => `<button onclick="setMonth(${i})" class="py-2 text-sm font-bold rounded-xl ${d.getMonth() === i ? 'bg-blue-600 text-white' : 'hover:bg-slate-50 text-slate-500'}">${m}</button>`).join('')}
                             </div>
                         </div>` : ''}
                     </div>
                     <div class="flex bg-slate-100 p-1 rounded-xl">
-                        <button onclick="setView('month')" class="p-2.5 rounded-xl ${state.view==='month'?'bg-white shadow text-blue-600':'text-slate-400'}">${SVG.calendar}</button>
-                        <button onclick="setView('day')" class="p-2.5 rounded-xl ${state.view==='day'?'bg-white shadow text-blue-600':'text-slate-400'}">${SVG.days}</button>
-                        <button onclick="setView('items')" class="p-2.5 rounded-xl ${state.view==='items'?'bg-white shadow text-blue-600':'text-slate-400'}">${SVG.layers}</button>
+                        <button onclick="setView('month')" class="p-2.5 rounded-xl ${state.view==='month'?'bg-white shadow text-blue-600':'text-gray-400'}">${SVG.calendar}</button>
+                        <button onclick="setView('day')" class="p-2.5 rounded-xl ${state.view==='day'?'bg-white shadow text-blue-600':'text-gray-400'}">${SVG.days}</button>
+                        <button onclick="setView('items')" class="p-2.5 rounded-xl ${state.view==='items'?'bg-white shadow text-blue-600':'text-gray-400'}">${SVG.layers}</button>
                     </div>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="navigate(-1)" class="p-2 bg-slate-50 rounded-xl text-slate-400">◀</button>
-                    <button onclick="state.currentDate=new Date(); render();" class="px-4 py-2 bg-slate-50 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500">TODAY</button>
+                    <button onclick="state.currentDate=new Date(); render();" class="px-4 py-2 bg-slate-50 rounded-xl text-[10px] font-black uppercase text-slate-500">TODAY</button>
                     <button onclick="navigate(1)" class="p-2 bg-slate-50 rounded-xl text-slate-400">▶</button>
                 </div>
             `;
@@ -137,7 +115,7 @@
 
         const changeYear = (dir) => { state.currentDate.setFullYear(state.currentDate.getFullYear() + dir); render(); };
         const setMonth = (m) => { state.currentDate.setMonth(m); state.showDatePicker = false; render(); };
-        const setView = (v) => { state.view = v; state.expandedCat = null; render(); };
+        const setView = (v) => { state.view = v; render(); };
         const navigate = (dir) => {
             if (state.view === 'day') state.currentDate.setDate(state.currentDate.getDate() + dir);
             else state.currentDate.setMonth(state.currentDate.getMonth() + dir);
@@ -157,70 +135,58 @@
                             if(!day) return `<div class="bg-slate-50/50 min-h-[95px]"></div>`;
                             const evs = getEventsForDay(day);
                             const isToday = fmtISO(day) === fmtISO(new Date());
-                            return `
-                                <div onclick="state.currentDate=new Date('${day}'); state.view='day'; render();" class="day-cell bg-white p-1">
-                                    <div class="text-[10px] mb-1 flex justify-center items-center w-6 h-6 mx-auto font-black ${isToday?'bg-blue-600 text-white rounded-full':''}">${day.getDate()}</div>
-                                    <div class="space-y-0.5">${evs.slice(0,3).map(e=>`<div class="text-[8px] px-1 truncate rounded border font-bold" style="background:${findCat(e.type).color}15; border-color:${findCat(e.type).color}">${e.title}</div>`).join('')}</div>
-                                </div>`;
+                            return `<div onclick="state.currentDate=new Date('${day}'); state.view='day'; render();" class="day-cell bg-white p-1">
+                                <div class="text-[10px] mb-1 flex justify-center items-center w-6 h-6 mx-auto font-black ${isToday?'bg-blue-600 text-white rounded-full':''}">${day.getDate()}</div>
+                                <div class="space-y-0.5">${evs.slice(0,3).map(e=>`<div class="text-[8px] px-1 truncate rounded border font-bold" style="background:${findCat(e.type).color}15; border-color:${findCat(e.type).color}">${e.title}</div>`).join('')}</div>
+                            </div>`;
                         }).join('')}
                     </div>`;
             } else if (state.view === 'day') {
                 const evs = getEventsForDay(state.currentDate);
-                main.innerHTML = `
-                    <div class="bg-white rounded-[32px] p-6 shadow-sm border border-slate-50 min-h-[450px] animate-up">
-                        <h2 class="text-xl font-black mb-6">${fmtDate(state.currentDate)}</h2>
-                        <div class="space-y-4">
-                            ${evs.map(e => `
-                                <div onclick="openEventForm('edit', '${e.id}')" class="p-5 rounded-3xl border flex justify-between items-center cursor-pointer hover:shadow-md transition-all" style="border-left:6px solid ${findCat(e.type).color}; background:${findCat(e.type).color}08">
-                                    <div class="flex-1">
-                                        <div class="text-[10px] font-black opacity-40 uppercase tracking-widest">${e.hasTime?e.time:'全天'}</div>
-                                        <div class="font-bold text-slate-700">${e.title}</div>
-                                        ${e.desc ? `<div class="text-[11px] text-slate-400 mt-2 line-clamp-2">${e.desc}</div>` : ''}
-                                    </div>
-                                    <span class="text-slate-200">▶</span>
-                                </div>`).join('')}
-                            ${evs.length===0?'<div class="py-24 text-center opacity-20 font-black">今日無計畫</div>':''}
-                        </div>
-                    </div>`;
+                main.innerHTML = `<div class="bg-white rounded-[32px] p-6 shadow-sm border border-slate-50 min-h-[450px] animate-up">
+                    <h2 class="text-xl font-black mb-6">${state.currentDate.toLocaleDateString()}</h2>
+                    <div class="space-y-4">
+                        ${evs.map(e => `<div onclick="openEventForm('edit', '${e.id}')" class="p-5 rounded-3xl border flex justify-between items-center cursor-pointer hover:shadow-md transition-all" style="border-left:6px solid ${findCat(e.type).color}; background:${findCat(e.type).color}08">
+                            <div class="flex-1"><div class="text-[10px] font-black opacity-40 uppercase">${e.hasTime?e.time:'全天'}</div><div class="font-bold text-slate-700">${e.title}</div></div>
+                            <span class="text-slate-200">▶</span>
+                        </div>`).join('')}
+                        ${evs.length===0?'<div class="py-24 text-center opacity-20 font-black">今日無計畫</div>':''}
+                    </div>
+                </div>`;
             } else {
-                main.innerHTML = `
-                    <div class="space-y-4 animate-up">
-                        <button onclick="openCategoryModal('add')" class="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black">+ 新增項目分類</button>
-                        ${state.categories.map((c, idx) => {
-                            const catEvs = state.events.filter(e => e.type === c.id);
-                            const isExpanded = state.expandedCat === c.id;
-                            return `
-                            <div class="bg-white rounded-3xl border border-slate-50 shadow-sm overflow-hidden">
-                                <div class="p-6 flex justify-between items-center">
-                                    <div class="flex items-center gap-4 flex-1 cursor-pointer" onclick="state.expandedCat = (state.expandedCat==='${c.id}'?null:'${c.id}'); render();">
-                                        <div class="w-4 h-4 rounded-full shadow-inner" style="background:${c.color}"></div>
-                                        <span class="font-black text-slate-700">${c.name} (${catEvs.length})</span>
-                                    </div>
-                                    <div class="flex gap-2">
-                                        <button onclick="reorderCat(${idx}, -1); event.stopPropagation();" class="p-2 text-slate-300 hover:text-blue-500">${SVG.order}</button>
-                                        <button onclick="openEventForm('add', null, '${c.id}'); event.stopPropagation();" class="p-2 bg-blue-50 text-blue-500 rounded-xl">${SVG.plus}</button>
-                                        <button onclick="openCategoryModal('edit', '${c.id}'); event.stopPropagation();" class="p-2 text-slate-300 hover:text-blue-500">${SVG.edit}</button>
-                                    </div>
-                                </div>
-                                ${isExpanded ? `
-                                <div class="bg-slate-50/50 p-4 border-t border-slate-50 space-y-2">
-                                    ${catEvs.map(e => `
-                                        <div onclick="openEventForm('edit', '${e.id}')" class="text-xs p-4 bg-white rounded-2xl border border-slate-100 flex justify-between cursor-pointer active:scale-95 transition-all">
-                                            <span class="font-bold text-slate-600">${e.title}</span>
-                                            <span class="text-slate-300">${e.date}</span>
-                                        </div>
-                                    `).join('')}
-                                    ${catEvs.length === 0 ? '<div class="text-center text-[10px] text-slate-300 py-4">目前沒有相關行程</div>' : ''}
-                                </div>` : ''}
-                            </div>`;
-                        }).join('')}
-                    </div>`;
+                main.innerHTML = `<div class="space-y-4 animate-up">
+                    <button onclick="openCategoryModal('add')" class="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black">+ 新增項目分類</button>
+                    ${state.categories.map((c, idx) => `
+                        <div class="bg-white p-6 rounded-3xl border border-slate-50 flex justify-between items-center shadow-sm">
+                            <div class="flex items-center gap-4">
+                                <div class="w-4 h-4 rounded-full shadow-inner" style="background:${c.color}"></div>
+                                <span class="font-black text-slate-700">${c.name}</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="reorderCat(${idx}, -1)" class="p-2 text-slate-300">▲</button>
+                                <button onclick="openCategoryModal('edit', '${c.id}')" class="p-2 text-slate-300">✎</button>
+                            </div>
+                        </div>`).join('')}
+                </div>`;
             }
+        };
+
+        const getEventsForDay = (date) => {
+            const dStr = fmtISO(date);
+            return state.events.filter(e => {
+                if (state.exceptions.some(ex => ex.id === e.id && ex.date === dStr)) return false;
+                if (e.isRecurring) {
+                    if (new Date(dStr) < new Date(e.date)) return false;
+                    if (e.endDate && new Date(dStr) > new Date(e.endDate)) return false;
+                    return e.repeatDays.includes(date.getDay());
+                }
+                return e.date === dStr;
+            }).sort((a,b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
         };
 
         const renderFooter = () => {
             document.getElementById('app-footer').innerHTML = `
-                <div class="pl-6 text-sm font-black text-blue-400">${fmtDate(state.currentDate)}</div>
+                <div class="pl-6 text-sm font-black text-blue-400">${state.currentDate.toLocaleDateString()}</div>
                 <button onclick="openEventForm('add')" class="bg-blue-600 w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all text-white">${SVG.plus}</button>
             `;
         };
@@ -239,11 +205,11 @@
         const findCat = (id) => state.categories.find(c=>c.id===id) || state.categories[0];
         const closeModal = () => document.getElementById('modal-container').innerHTML = '';
 
-        // --- 行程彈窗 ---
-        const openEventForm = (mode, id = null, catId = null) => {
+        // --- 行程彈窗 (核心修改) ---
+        const openEventForm = (mode, id = null) => {
             state.editScope = 'series';
             if (mode === 'add') {
-                state.tempEv = { id:Date.now().toString(), title:'', desc:'', type: catId || state.categories[0].id, date:fmtISO(state.currentDate), hasTime:false, time:'12:00', isRecurring:false, repeatDays:[], endDate:'' };
+                state.tempEv = { id:Date.now().toString(), title:'', desc:'', type: state.categories[0].id, date:fmtISO(state.currentDate), hasTime:false, time:'12:00', isRecurring:false, repeatDays:[], endDate:'' };
             } else {
                 state.tempEv = JSON.parse(JSON.stringify(state.events.find(e=>e.id===id)));
                 if (state.tempEv.isRecurring) state.tempEv.date = fmtISO(state.currentDate);
@@ -255,97 +221,114 @@
             const f = state.tempEv;
             document.getElementById('modal-container').innerHTML = `
                 <div class="fixed inset-0 z-[60] flex items-end justify-center modal-overlay">
-                    <div class="bg-white w-full max-w-md rounded-t-[48px] p-8 animate-up overflow-y-auto max-h-[90vh] no-scrollbar shadow-2xl">
+                    <div class="bg-white w-full max-w-md rounded-t-[48px] p-8 animate-up overflow-y-auto max-h-[90vh] no-scrollbar">
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="text-xl font-black text-slate-800">計畫詳情</h2>
-                            <button onclick="closeModal()" class="p-2 hover:bg-slate-50 rounded-full">${SVG.x}</button>
+                            <button onclick="closeModal()">${SVG.x}</button>
                         </div>
                         <div class="space-y-6">
                             ${(mode==='edit' && f.isRecurring) ? `
                                 <div class="flex p-1 bg-slate-100 rounded-2xl mb-4 text-[11px] font-black">
-                                    <button onclick="state.editScope='series'; renderEventModal('edit')" class="flex-1 py-3 rounded-xl ${state.editScope==='series'?'bg-white shadow text-blue-600':'text-slate-400'}">全部修改</button>
-                                    <button onclick="state.editScope='single'; renderEventModal('edit')" class="flex-1 py-3 rounded-xl ${state.editScope==='single'?'bg-white shadow text-blue-600':'text-slate-400'}">僅修這次</button>
+                                    <button onclick="setScope('series')" class="flex-1 py-3 rounded-xl ${state.editScope==='series'?'bg-white shadow text-blue-600':'text-slate-400'}">全部修改</button>
+                                    <button onclick="setScope('single')" class="flex-1 py-3 rounded-xl ${state.editScope==='single'?'bg-white shadow text-blue-600':'text-slate-400'}">僅修這次</button>
                                 </div>` : ''}
                             
                             <input id="f-title" type="text" placeholder="計畫標題" value="${f.title}" oninput="state.tempEv.title=this.value">
                             <textarea id="f-desc" placeholder="說明欄 (自由選填)" oninput="state.tempEv.desc=this.value">${f.desc || ''}</textarea>
 
-                            <div class="date-time-grid">
-                                <div><label class="text-[10px] font-black text-slate-300 block mb-1">日期</label><input id="f-date" type="date" value="${f.date}" onchange="state.tempEv.date=this.value"></div>
-                                <div id="time-box" style="${f.hasTime?'':'visibility:hidden'}"><label class="text-[10px] font-black text-slate-300 block mb-1">時間</label><input id="f-time" type="time" value="${f.time}" onchange="state.tempEv.time=this.value"></div>
-                            </div>
-
-                            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                                <span class="font-black text-xs text-slate-600">具體時間</span>
-                                <input type="checkbox" class="w-5 h-5 accent-blue-600" ${f.hasTime?'checked':''} onchange="state.tempEv.hasTime=this.checked; renderEventModal('${mode}')">
-                            </div>
-
-                            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                                <span class="font-black text-xs text-green-600">重複日期</span>
-                                <input type="checkbox" class="w-5 h-5 accent-green-600" ${f.isRecurring?'checked':''} onchange="state.tempEv.isRecurring=this.checked; renderEventModal('${mode}')">
-                            </div>
-
-                            ${f.isRecurring ? `
-                            <div class="p-5 border-2 border-slate-50 rounded-[32px] space-y-4">
-                                <div class="flex justify-between">${['日','一','二','三','四','五','六'].map((d,i)=>`<button onclick="toggleDay(${i}, '${mode}')" class="w-8 h-8 rounded-xl text-[10px] font-bold ${f.repeatDays.includes(i)?'bg-blue-600 text-white shadow-lg shadow-blue-200':'bg-slate-100 text-slate-400'}">${d}</button>`).join('')}</div>
-                                <div class="flex items-center justify-between pt-2">
-                                    <span class="text-[10px] font-black text-slate-400 uppercase">截止日</span>
-                                    <input type="date" value="${f.endDate || ''}" onchange="state.tempEv.endDate=this.value" class="!w-auto !p-2 !text-xs">
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <span class="font-black text-xs text-slate-600">日期</span>
+                                    <input type="date" value="${f.date}" class="!w-auto !bg-transparent !p-0 font-black text-right" onchange="state.tempEv.date=this.value">
                                 </div>
-                            </div>` : ''}
+                                <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-black text-xs text-slate-600">具體時間</span>
+                                        <input type="checkbox" class="w-5 h-5 accent-blue-600" ${f.hasTime?'checked':''} onchange="toggleTimeUI(this.checked)">
+                                    </div>
+                                    <input type="time" id="f-time" value="${f.time}" class="!w-auto !bg-transparent !p-0 font-black text-right ${f.hasTime?'':'hidden'}" onchange="state.tempEv.time=this.value">
+                                </div>
+                            </div>
+
+                            <div id="recurring-box" class="${(mode==='edit' && state.editScope==='single')?'hidden':''}">
+                                <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl mb-4">
+                                    <span class="font-black text-xs text-green-600 uppercase">重複日期</span>
+                                    <input type="checkbox" class="w-5 h-5 accent-green-600" ${f.isRecurring?'checked':''} onchange="toggleRepeatUI(this.checked)">
+                                </div>
+
+                                <div id="repeat-detail" class="${f.isRecurring?'':'hidden'} space-y-4 p-5 border-2 border-slate-50 rounded-[32px]">
+                                    <div class="flex justify-between">
+                                        ${['日','一','二','三','四','五','六'].map((d,i)=>`<button onclick="toggleDay(${i}, this)" class="w-8 h-8 rounded-xl text-[10px] font-bold ${f.repeatDays.includes(i)?'bg-blue-600 text-white shadow-lg':'bg-slate-100 text-slate-400'}">${d}</button>`).join('')}
+                                    </div>
+                                    <div class="flex items-center justify-between pt-2">
+                                        <span class="text-[10px] font-black text-slate-400 uppercase">截止日</span>
+                                        <input type="date" value="${f.endDate || ''}" onchange="state.tempEv.endDate=this.value" class="!w-auto !bg-transparent !p-0 font-black">
+                                    </div>
+                                </div>
+                            </div>
 
                             <div class="grid grid-cols-3 gap-2">
-                                ${state.categories.map(c=>`<button onclick="state.tempEv.type='${c.id}'; renderEventModal('${mode}')" class="p-3 rounded-2xl border-2 text-[10px] font-black ${f.type===c.id?'border-slate-800 bg-slate-800 text-white shadow-md':'border-slate-50 text-slate-300'}">${c.name}</button>`).join('')}
+                                ${state.categories.map(c=>`<button onclick="setCat('${c.id}', this)" class="p-3 rounded-2xl border-2 text-[10px] font-black ${f.type===c.id?'border-slate-800 bg-slate-800 text-white shadow-md':'border-slate-50 text-slate-300'}">${c.name}</button>`).join('')}
                             </div>
 
                             <div class="flex gap-3 pt-4">
-                                <button onclick="saveEvent('${mode}')" class="flex-[4] py-5 bg-blue-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-blue-200 active:scale-95 transition-all">儲存計畫</button>
-                                ${mode==='edit' ? `<button onclick="deleteEvent()" class="flex-1 bg-red-50 text-red-500 rounded-[24px] flex items-center justify-center transition-colors hover:bg-red-100">${SVG.trash}</button>` : ''}
+                                <button onclick="saveEvent('${mode}')" class="flex-[4] py-5 bg-blue-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-blue-200">儲存計畫</button>
+                                ${mode==='edit' ? `<button onclick="deleteEvent()" class="flex-1 bg-red-50 text-red-500 rounded-[24px] flex items-center justify-center">${SVG.trash}</button>` : ''}
                             </div>
                         </div>
                     </div>
                 </div>`;
         };
 
-        const toggleDay = (i, mode) => {
+        const toggleTimeUI = (on) => {
+            state.tempEv.hasTime = on;
+            document.getElementById('f-time').classList.toggle('hidden', !on);
+        };
+        const toggleRepeatUI = (on) => {
+            state.tempEv.isRecurring = on;
+            document.getElementById('repeat-detail').classList.toggle('hidden', !on);
+        };
+        const setScope = (s) => { state.editScope = s; renderEventModal('edit'); };
+        const setCat = (id, btn) => {
+            state.tempEv.type = id;
+            btn.parentElement.querySelectorAll('button').forEach(b=>b.className='p-3 rounded-2xl border-2 text-[10px] font-black border-slate-50 text-slate-300');
+            btn.className='p-3 rounded-2xl border-2 text-[10px] font-black border-slate-800 bg-slate-800 text-white shadow-md';
+        };
+        const toggleDay = (idx, btn) => {
             let days = state.tempEv.repeatDays;
-            state.tempEv.repeatDays = days.includes(i) ? days.filter(x=>x!==i) : [...days, i];
-            renderEventModal(mode);
+            state.tempEv.repeatDays = days.includes(idx) ? days.filter(i=>i!==idx) : [...days, idx];
+            btn.classList.toggle('bg-blue-600', state.tempEv.repeatDays.includes(idx));
+            btn.classList.toggle('text-white', state.tempEv.repeatDays.includes(idx));
         };
 
         const saveEvent = (mode) => {
             if(!state.tempEv.title) return;
-            if (mode === 'add') {
-                state.events.push(state.tempEv);
+            if (mode === 'edit' && state.editScope === 'single' && state.tempEv.isRecurring) {
+                state.exceptions.push({ id: state.tempEv.id, date: state.tempEv.date });
+                state.events.push({ ...state.tempEv, id: Date.now().toString(), isRecurring: false });
             } else {
-                if (state.editScope === 'single' && state.tempEv.isRecurring) {
-                    state.exceptions.push({ id: state.tempEv.id, date: fmtISO(state.currentDate) });
-                    state.events.push({ ...state.tempEv, id: Date.now().toString(), isRecurring: false });
-                } else {
-                    state.events = state.events.map(e => e.id === state.tempEv.id ? state.tempEv : e);
-                }
+                state.events = [...state.events.filter(e => e.id !== state.tempEv.id), state.tempEv];
             }
             closeModal(); render();
         };
 
-        const deleteEvent = () => {
-            state.events = state.events.filter(e => e.id !== state.tempEv.id);
-            closeModal(); render();
-        };
-
-        // --- 分類編輯 ---
+        const deleteEvent = () => { state.events = state.events.filter(e => e.id !== state.tempEv.id); closeModal(); render(); };
+        
         const openCategoryModal = (mode, id = null) => {
             let cat = mode === 'edit' ? state.categories.find(c => c.id === id) : { name: '', color: '#1E293B' };
             document.getElementById('modal-container').innerHTML = `
                 <div class="fixed inset-0 z-[60] flex items-center justify-center p-6 modal-overlay">
                     <div class="bg-white w-full max-w-xs rounded-[40px] p-10 shadow-2xl relative animate-up">
                         <button onclick="closeModal()" class="absolute top-6 right-6 p-2">${SVG.x}</button>
-                        <h3 class="font-black mb-8 text-center text-xl tracking-tighter">${mode==='add'?'新增分類項目':'編輯分類內容'}</h3>
+                        <h3 class="font-black mb-8 text-center text-xl tracking-tighter">項目分類</h3>
                         <div class="space-y-4">
                             <input id="c-name" type="text" placeholder="項目名稱" value="${cat.name}">
-                            <input id="c-color" type="color" value="${cat.color}" class="h-14 bg-transparent cursor-pointer">
+                            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                                <span class="text-xs font-bold text-slate-400 uppercase">代表顏色</span>
+                                <input id="c-color" type="color" value="${cat.color}">
+                            </div>
                             <button onclick="saveCat('${mode}', '${id}')" class="w-full py-5 bg-slate-900 text-white rounded-3xl font-black shadow-lg">確認儲存</button>
-                            ${mode==='edit' ? `<button onclick="deleteCat('${id}')" class="w-full py-3 text-red-400 font-bold">刪除此分類</button>` : ''}
+                            ${mode==='edit' ? `<button onclick="deleteCat('${id}')" class="w-full py-3 text-red-400 font-bold">刪除</button>` : ''}
                         </div>
                     </div>
                 </div>`;
@@ -361,11 +344,8 @@
         };
 
         const deleteCat = (id) => {
-            if(state.categories.length > 1) {
-                state.categories = state.categories.filter(c => c.id !== id);
-                state.events = state.events.filter(e => e.type !== id);
-                closeModal(); render();
-            }
+            state.categories = state.categories.filter(c => c.id !== id);
+            closeModal(); render();
         };
 
         window.onload = render;
