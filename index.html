@@ -9,7 +9,6 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #F8FAFC; color: #1E293B; -webkit-tap-highlight-color: transparent; }
         
-        /* 文字內距統一對齊 */
         input[type="text"], textarea { 
             background-color: #F1F5F9; border: none; border-radius: 16px; 
             padding: 18px 24px !important; width: 100%; outline: none; font-weight: 500; font-size: 16px; 
@@ -24,11 +23,8 @@
         .animate-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-        /* 截止日底色樣式 */
         .end-date-box { background-color: #EBF2FF; border-radius: 16px; padding: 12px 16px; transition: all 0.2s; }
-
         .day-cell { min-height: 105px; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-        .hidden-section { display: none !important; }
     </style>
 </head>
 <body class="max-w-md mx-auto min-h-screen pb-32 relative shadow-2xl bg-white">
@@ -41,7 +37,7 @@
     <script>
         const SVG = {
             calendar: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
-            days: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 2v4M16 2v4M3 10h18M21 4H3v16h18z"/></svg>',
+            days: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 2v4M16 2v4M3 10h18M21 4H3v16h18V4z"/></svg>',
             layers: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
             plus: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5v14"/></svg>',
             x: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>',
@@ -60,6 +56,7 @@
             events: JSON.parse(localStorage.getItem('evs')) || [],
             exceptions: JSON.parse(localStorage.getItem('exs')) || [],
             showDatePicker: false,
+            expandedCat: null,
             tempEv: {},
             editScope: 'series'
         };
@@ -108,7 +105,7 @@
                 </div>
                 <div class="flex gap-2">
                     <button onclick="navigate(-1)" class="p-2 bg-slate-50 rounded-xl text-slate-400">◀</button>
-                    <button onclick="state.currentDate=new Date(); render();" class="px-4 py-2 bg-slate-50 rounded-xl text-[10px] font-black uppercase text-slate-500">TODAY</button>
+                    <button onclick="state.currentDate=new Date(); render();" class="px-4 py-2 bg-slate-50 rounded-xl text-[10px] font-black uppercase text-slate-500 tracking-widest">今天</button>
                     <button onclick="navigate(1)" class="p-2 bg-slate-50 rounded-xl text-slate-400">▶</button>
                 </div>
             `;
@@ -116,7 +113,7 @@
 
         const changeYear = (dir) => { state.currentDate.setFullYear(state.currentDate.getFullYear() + dir); render(); };
         const setMonth = (m) => { state.currentDate.setMonth(m); state.showDatePicker = false; render(); };
-        const setView = (v) => { state.view = v; render(); };
+        const setView = (v) => { state.view = v; state.expandedCat = null; render(); };
         const navigate = (dir) => {
             if (state.view === 'day') state.currentDate.setDate(state.currentDate.getDate() + dir);
             else state.currentDate.setMonth(state.currentDate.getMonth() + dir);
@@ -138,7 +135,7 @@
                             const isToday = fmtISO(day) === fmtISO(new Date());
                             return `<div onclick="state.currentDate=new Date('${day}'); state.view='day'; render();" class="day-cell bg-white p-1">
                                 <div class="text-[10px] mb-1 flex justify-center items-center w-6 h-6 mx-auto font-black ${isToday?'bg-blue-600 text-white rounded-full':''}">${day.getDate()}</div>
-                                <div class="space-y-0.5">${evs.slice(0,3).map(e=>`<div class="text-[8px] px-1 truncate rounded border font-bold" style="background:${findCat(e.type).color}15; border-color:${findCat(e.type).color}">${e.title}</div>`).join('')}</div>
+                                <div class="space-y-0.5">${evs.slice(0,3).map(e=>`<div onclick="event.stopPropagation(); openEventForm('edit', '${e.id}');" class="text-[8px] px-1 truncate rounded border font-bold" style="background:${findCat(e.type).color}15; border-color:${findCat(e.type).color}">${e.title}</div>`).join('')}</div>
                             </div>`;
                         }).join('')}
                     </div>`;
@@ -151,24 +148,43 @@
                             <div class="flex-1"><div class="text-[10px] font-black opacity-40 uppercase">${e.hasTime?e.time:'全天'}</div><div class="font-bold text-slate-700">${e.title}</div></div>
                             <span class="text-slate-200">▶</span>
                         </div>`).join('')}
-                        ${evs.length===0?'<div class="py-24 text-center opacity-20 font-black">今日無計畫</div>':''}
+                        ${evs.length===0?'<div class="py-24 text-center opacity-20 font-black">今日無行程</div>':''}
                     </div>
                 </div>`;
             } else {
                 main.innerHTML = `<div class="space-y-4 animate-up">
-                    <button onclick="openCategoryModal('add')" class="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black">+ 新增項目分類</button>
-                    ${state.categories.map((c, idx) => `
-                        <div class="bg-white p-6 rounded-3xl border border-slate-50 flex justify-between items-center shadow-sm">
-                            <div class="flex items-center gap-4">
-                                <div class="w-4 h-4 rounded-full shadow-inner" style="background:${c.color}"></div>
-                                <span class="font-black text-slate-700">${c.name}</span>
+                    <button onclick="openCategoryModal('add')" class="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black">+ 新增項目</button>
+                    ${state.categories.map((c, idx) => {
+                        const catEvs = state.events.filter(e => e.type === c.id);
+                        const isExpanded = state.expandedCat === c.id;
+                        return `
+                        <div class="bg-white rounded-3xl border border-slate-50 shadow-sm overflow-hidden">
+                            <div class="p-6 flex justify-between items-center">
+                                <div class="flex items-center gap-4 flex-1 cursor-pointer" onclick="state.expandedCat = (state.expandedCat==='${c.id}'?null:'${c.id}'); render();">
+                                    <div class="w-4 h-4 rounded-full shadow-inner" style="background:${c.color}"></div>
+                                    <span class="font-black text-slate-700">${c.name} (${catEvs.length})</span>
+                                </div>
+                                <div class="flex gap-1">
+                                    <div class="flex flex-col">
+                                        <button onclick="reorderCat(${idx}, -1); event.stopPropagation();" class="text-[10px] p-0.5 text-slate-300 hover:text-slate-800 transition-colors">▲</button>
+                                        <button onclick="reorderCat(${idx}, 1); event.stopPropagation();" class="text-[10px] p-0.5 text-slate-300 hover:text-slate-800 transition-colors">▼</button>
+                                    </div>
+                                    <button onclick="openEventForm('add', null, '${c.id}'); event.stopPropagation();" class="p-2 bg-blue-50 text-blue-500 rounded-xl">＋</button>
+                                    <button onclick="openCategoryModal('edit', '${c.id}'); event.stopPropagation();" class="p-2 text-slate-300">✎</button>
+                                </div>
                             </div>
-                            <div class="flex gap-2">
-                                <button onclick="reorderCat(${idx}, -1)" class="p-2 text-slate-300">▲</button>
-                                <button onclick="openEventForm('add', null, '${c.id}')" class="p-2 bg-blue-50 text-blue-500 rounded-xl">${SVG.plus}</button>
-                                <button onclick="openCategoryModal('edit', '${c.id}')" class="p-2 text-slate-300">✎</button>
-                            </div>
-                        </div>`).join('')}
+                            ${isExpanded ? `
+                                <div class="bg-slate-50/50 p-4 border-t border-slate-50 space-y-2">
+                                    ${catEvs.map(e => `
+                                        <div onclick="openEventForm('edit', '${e.id}')" class="text-xs p-3 bg-white rounded-xl border border-slate-100 flex justify-between cursor-pointer active:scale-95 transition-all">
+                                            <span class="font-bold text-slate-600">${e.title}</span>
+                                            <span class="text-slate-300">${e.date}</span>
+                                        </div>
+                                    `).join('')}
+                                    ${catEvs.length === 0 ? '<div class="text-center text-[10px] text-slate-300 py-4">目前沒有行程</div>' : ''}
+                                </div>` : ''}
+                        </div>`;
+                    }).join('')}
                 </div>`;
             }
         };
@@ -193,20 +209,9 @@
             `;
         };
 
-        const reorderCat = (idx, dir) => {
-            const target = idx + dir;
-            if (target >= 0 && target < state.categories.length) {
-                const temp = state.categories[idx];
-                state.categories[idx] = state.categories[target];
-                state.categories[target] = temp;
-                render();
-            }
-        };
-
         const findCat = (id) => state.categories.find(c=>c.id===id) || state.categories[0];
         const closeModal = () => document.getElementById('modal-container').innerHTML = '';
 
-        // --- 行程彈窗修復 ---
         const openEventForm = (mode, id = null, catId = null) => {
             state.editScope = 'series';
             if (mode === 'add') {
@@ -222,9 +227,9 @@
             const f = state.tempEv;
             document.getElementById('modal-container').innerHTML = `
                 <div class="fixed inset-0 z-[60] flex items-end justify-center modal-overlay">
-                    <div class="bg-white w-full max-w-md rounded-t-[48px] p-8 animate-up overflow-y-auto max-h-[90vh] no-scrollbar shadow-2xl">
+                    <div class="bg-white w-full max-w-md rounded-t-[48px] p-8 animate-up overflow-y-auto max-h-[90vh] no-scrollbar">
                         <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-xl font-black text-slate-800">計畫詳情</h2>
+                            <h2 class="text-xl font-black text-slate-800">行程</h2>
                             <button onclick="closeModal()">${SVG.x}</button>
                         </div>
                         <div class="space-y-6">
@@ -234,7 +239,7 @@
                                     <button onclick="setScope('single')" class="flex-1 py-3 rounded-xl ${state.editScope==='single'?'bg-white shadow text-blue-600':'text-slate-400'}">僅修這次</button>
                                 </div>` : ''}
                             
-                            <input id="f-title" type="text" placeholder="計畫標題" value="${f.title}" oninput="state.tempEv.title=this.value">
+                            <input id="f-title" type="text" placeholder="標題" value="${f.title}" oninput="state.tempEv.title=this.value">
                             <textarea id="f-desc" placeholder="說明欄 (自由選填)" oninput="state.tempEv.desc=this.value">${f.desc || ''}</textarea>
 
                             <div class="space-y-4">
@@ -266,7 +271,7 @@
                                         `).join('')}
                                     </div>
                                     <div class="end-date-box flex items-center justify-between mt-2">
-                                        <span class="text-[10px] font-black text-blue-600 uppercase">重複截止日期</span>
+                                        <span class="text-[10px] font-black text-blue-600 uppercase">截止日</span>
                                         <input type="date" value="${f.endDate || ''}" onchange="state.tempEv.endDate=this.value" class="!w-auto !bg-transparent !p-0 font-black">
                                     </div>
                                 </div>
@@ -277,7 +282,7 @@
                             </div>
 
                             <div class="flex gap-3 pt-4">
-                                <button onclick="saveEvent('${mode}')" class="flex-[4] py-5 bg-blue-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-blue-200 active:scale-95 transition-all">儲存計畫</button>
+                                <button onclick="saveEvent('${mode}')" class="flex-[4] py-5 bg-blue-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-blue-200 active:scale-95 transition-all">儲存</button>
                                 ${mode==='edit' ? `<button onclick="deleteEvent()" class="flex-1 bg-red-50 text-red-500 rounded-[24px] flex items-center justify-center">${SVG.trash}</button>` : ''}
                             </div>
                         </div>
@@ -334,7 +339,7 @@
                                 <span class="text-xs font-bold text-slate-400 uppercase">代表顏色</span>
                                 <input id="c-color" type="color" value="${cat.color}">
                             </div>
-                            <button onclick="saveCat('${mode}', '${id}')" class="w-full py-5 bg-slate-900 text-white rounded-3xl font-black shadow-lg">確認儲存</button>
+                            <button onclick="saveCat('${mode}', '${id}')" class="w-full py-5 bg-slate-900 text-white rounded-3xl font-black shadow-lg">儲存</button>
                             ${mode==='edit' ? `<button onclick="deleteCat('${id}')" class="w-full py-3 text-red-400 font-bold">刪除</button>` : ''}
                         </div>
                     </div>
@@ -351,6 +356,16 @@
         };
 
         const deleteCat = (id) => { state.categories = state.categories.filter(c => c.id !== id); closeModal(); render(); };
+
+        const reorderCat = (idx, dir) => {
+            const target = idx + dir;
+            if (target >= 0 && target < state.categories.length) {
+                const temp = state.categories[idx];
+                state.categories[idx] = state.categories[target];
+                state.categories[target] = temp;
+                render();
+            }
+        };
 
         window.onload = render;
     </script>
